@@ -2,7 +2,7 @@
 
 > Jejak peluru 3 tingkat (inti 1px, pasangan piksel, ekor gelap), kilatan moncong dari sinar acak, dan percikan berpantul.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/tracer-muzzle.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/tracer-muzzle.html
 
 ## Anatomi tracer
 Tracer yang baik terbaca di sudut apa pun karena **ketebalan** dan **kecerahan** berubah sepanjang jejak:

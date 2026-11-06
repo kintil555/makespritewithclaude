@@ -2,7 +2,7 @@
 
 > Kilat putih, gumpalan bola api 5 lapis, sinar radiasi, gelombang kejut bergelombang, partikel, dan asap — dengan palet api atau neutron.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/explosion.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/explosion.html
 
 ## Lapisan (urutan gambar)
 1. **Asap** (di belakang): disc besar bertahap gelap, alpha ~0.55 menurun.

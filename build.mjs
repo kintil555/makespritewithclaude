@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { marked } from 'marked';
 
-const SITE = 'https://kintil555.github.io/makespritewithclaude';
+const SITE = 'https://makespritewithclaude.pages.dev';
 const NAME = 'Make Sprite With Claude';
 const TAGLINE = 'Teknik membuat sprite pixel art prosedural yang bagus — ditulis agar mudah dibaca dan ditiru oleh AI.';
 const CATS = {

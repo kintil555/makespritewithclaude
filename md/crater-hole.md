@@ -2,7 +2,7 @@
 
 > Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/crater-hole.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/crater-hole.html
 
 ## Langkah
 1. **Bentuk lubang**: radius per sudut `r·(1 + 0.12 sin3θ + 0.07 sin5θ + 0.04 sin9θ)` dengan fase acak. Piksel di dalamnya ditandai `hole=1`.

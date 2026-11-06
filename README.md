@@ -2,7 +2,7 @@
 
 Blog statis berisi teknik agar Claude (atau AI lain) bisa membuat **sprite pixel art prosedural** yang bagus: render halus → grid piksel, palet + dithering, buffer piksel, sprite sheet, serta efek (tracer, ledakan, lubang, api, bola neutron/pulsar) dan karakter dari persamaan.
 
-Situs: https://kintil555.github.io/makespritewithclaude/ (aktifkan GitHub Pages: Settings → Pages → branch `main`, folder `/`).
+Situs: https://makespritewithclaude.pages.dev/ (Cloudflare Pages: preset None, tanpa build command, output dir kosong).
 
 ## Akses untuk AI
 - `/llms.txt` — indeks + tautan markdown per artikel

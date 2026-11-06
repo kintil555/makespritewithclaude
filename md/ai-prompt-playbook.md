@@ -2,13 +2,13 @@
 
 > Template spesifikasi, aturan ketat, urutan kerja, dan checklist verifikasi agar Claude atau AI lain menghasilkan sprite pixel prosedural yang tajam dan konsisten.
 
-Kategori: Panduan untuk AI · URL: https://kintil555.github.io/makespritewithclaude/articles/ai-prompt-playbook.html
+Kategori: Panduan untuk AI · URL: https://makespritewithclaude.pages.dev/articles/ai-prompt-playbook.html
 
 ## Aturan emas (jika hanya membaca satu bagian)
-1. **Jangan menggambar piksel secara manual.** Render halus resolusi tinggi → turunkan ke grid ([teknik inti](https://kintil555.github.io/makespritewithclaude/md/hires-to-pixel.md)).
+1. **Jangan menggambar piksel secara manual.** Render halus resolusi tinggi → turunkan ke grid ([teknik inti](https://makespritewithclaude.pages.dev/md/hires-to-pixel.md)).
 2. **Semua koordinat tujuan adalah integer.** Bulatkan saat render, bukan saat simulasi.
-3. **Palet terbatas** (≤ 6 warna per material) dengan ramp dan dither Bayer ([palet](https://kintil555.github.io/makespritewithclaude/md/dither-palette.md)).
-4. **Efek = lapisan disc berpiksel**, bukan gradient/`arc()` anti-alias ([buffer](https://kintil555.github.io/makespritewithclaude/md/pixel-buffer.md)).
+3. **Palet terbatas** (≤ 6 warna per material) dengan ramp dan dither Bayer ([palet](https://makespritewithclaude.pages.dev/md/dither-palette.md)).
+4. **Efek = lapisan disc berpiksel**, bukan gradient/`arc()` anti-alias ([buffer](https://makespritewithclaude.pages.dev/md/pixel-buffer.md)).
 5. **Alpha hanya 0 atau 255** pada hasil akhir (anti-halo).
 6. **Verifikasi dengan melihat**: render ke PNG, perbesar (nearest-neighbor), periksa; jangan menebak.
 
@@ -24,7 +24,7 @@ Padding atlas   : [0px | 1px]
 Pivot           : [mis. bottom-center (16,28)]
 Latar uji       : [mis. #14121c gelap]
 ```
-Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersih, (3) panduan texturing & optimasi (format, kompresi warna, `image-rendering`). Contoh jawaban lengkap: [sprite sheet](https://kintil555.github.io/makespritewithclaude/md/sprite-sheet.md).
+Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersih, (3) panduan texturing & optimasi (format, kompresi warna, `image-rendering`). Contoh jawaban lengkap: [sprite sheet](https://makespritewithclaude.pages.dev/md/sprite-sheet.md).
 
 ## Aturan ketat untuk AI
 - **Grid & padding**: X/Y integer, tanpa desimal (cegah blur sub-pixel). Hitung `x = P + i·(FR+P)`.
@@ -36,10 +36,10 @@ Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersi
 
 ## Urutan kerja yang disarankan
 1. Tentukan spesifikasi (template di atas).
-2. Buat **rig** halus (tulang/IK atau persamaan bentuk) — [stickman IK](https://kintil555.github.io/makespritewithclaude/md/hires-to-pixel.md) atau [karakter dari persamaan](https://kintil555.github.io/makespritewithclaude/md/procedural-character.md).
+2. Buat **rig** halus (tulang/IK atau persamaan bentuk) — [stickman IK](https://makespritewithclaude.pages.dev/md/hires-to-pixel.md) atau [karakter dari persamaan](https://makespritewithclaude.pages.dev/md/procedural-character.md).
 3. Turunkan ke piksel dengan `PX.pixelize` / pemetaan per-piksel.
-4. Tambah efek dari katalog: [tracer](https://kintil555.github.io/makespritewithclaude/md/tracer-muzzle.md), [ledakan](https://kintil555.github.io/makespritewithclaude/md/explosion.md), [lubang](https://kintil555.github.io/makespritewithclaude/md/crater-hole.md), [api](https://kintil555.github.io/makespritewithclaude/md/fire.md), [neutron/pulsar](https://kintil555.github.io/makespritewithclaude/md/neutron-psr.md).
-5. Bake atlas ([sprite sheet](https://kintil555.github.io/makespritewithclaude/md/sprite-sheet.md)) dan uji di latar gelap.
+4. Tambah efek dari katalog: [tracer](https://makespritewithclaude.pages.dev/md/tracer-muzzle.md), [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md), [lubang](https://makespritewithclaude.pages.dev/md/crater-hole.md), [api](https://makespritewithclaude.pages.dev/md/fire.md), [neutron/pulsar](https://makespritewithclaude.pages.dev/md/neutron-psr.md).
+5. Bake atlas ([sprite sheet](https://makespritewithclaude.pages.dev/md/sprite-sheet.md)) dan uji di latar gelap.
 6. Periksa checklist.
 
 ## Checklist verifikasi

@@ -2,7 +2,7 @@
 
 > Shading bola/benda dengan 5–6 warna dan matriks Bayer 4×4 sebagai ganti gradient, supaya tetap terlihat pixel art.
 
-Kategori: Teknik Rendering · URL: https://kintil555.github.io/makespritewithclaude/articles/dither-palette.html
+Kategori: Teknik Rendering · URL: https://makespritewithclaude.pages.dev/articles/dither-palette.html
 
 ## Prinsip
 Gradient halus langsung merusak gaya piksel. Gunakan **ramp** 5–6 warna (gelap → terang) dan pilih indeks per piksel dari nilai cahaya `k` (0..1):

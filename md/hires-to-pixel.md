@@ -2,7 +2,7 @@
 
 > Teknik inti — gambar karakter sebagai vektor halus beresolusi tinggi, lalu ubah per sel menjadi piksel ber-shading dan ber-outline.
 
-Kategori: Teknik Rendering · URL: https://kintil555.github.io/makespritewithclaude/articles/hires-to-pixel.html
+Kategori: Teknik Rendering · URL: https://makespritewithclaude.pages.dev/articles/hires-to-pixel.html
 
 ## Masalah
 Menggambar karakter bergerak langsung dari piksel (garis Bresenham, rotasi manual) menghasilkan bentuk bergerigi tidak konsisten: lengan menipis, kepala berkedip, outline pecah. AI sangat sering gagal di sini.

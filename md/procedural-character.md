@@ -2,7 +2,7 @@
 
 > Setiap piksel menanyakan koordinat lokal badan; bentuk berasal dari persamaan elips/kapsul, wajah dari bitmap string, outline dari siluet.
 
-Kategori: Karakter Prosedural · URL: https://kintil555.github.io/makespritewithclaude/articles/procedural-character.html
+Kategori: Karakter Prosedural · URL: https://makespritewithclaude.pages.dev/articles/procedural-character.html
 
 ## Pendekatan "per-piksel query"
 Alih-alih menaruh piksel satu per satu, untuk tiap piksel layar:

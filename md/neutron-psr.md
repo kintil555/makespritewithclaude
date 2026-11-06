@@ -2,14 +2,14 @@
 
 > Proyektil bola neutron biru dengan jejak, ledakan Cherenkov, dan pulsar ber-sinar menyapu dengan garis medan dipol.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/neutron-psr.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/neutron-psr.html
 
 ## Bola neutron (proyektil)
 - Bola `R≈3.3` ter-shade 5 ambang Lambert (`l<.2, .45, .7, .9`) dengan arah cahaya tetap kiri-atas.
 - Tepi yang gelap dinaikkan satu tingkat agar siluet terbaca di latar gelap.
 - **Jejak**: 18 disc di belakang, mengecil dan alpha `(1−u)^1.4`; 40% pertama warna terang.
 - 3 percikan piksel acak mengorbit bola tiap frame.
-- Mengenai target → ledakan dengan palet neutron (lihat [ledakan](https://kintil555.github.io/makespritewithclaude/md/explosion.md)).
+- Mengenai target → ledakan dengan palet neutron (lihat [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md)).
 
 > **Demo interaktif "neutron"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
 

@@ -6,13 +6,13 @@
 
 > Template spesifikasi, aturan ketat, urutan kerja, dan checklist verifikasi agar Claude atau AI lain menghasilkan sprite pixel prosedural yang tajam dan konsisten.
 
-Kategori: Panduan untuk AI · URL: https://kintil555.github.io/makespritewithclaude/articles/ai-prompt-playbook.html
+Kategori: Panduan untuk AI · URL: https://makespritewithclaude.pages.dev/articles/ai-prompt-playbook.html
 
 ## Aturan emas (jika hanya membaca satu bagian)
-1. **Jangan menggambar piksel secara manual.** Render halus resolusi tinggi → turunkan ke grid ([teknik inti](https://kintil555.github.io/makespritewithclaude/md/hires-to-pixel.md)).
+1. **Jangan menggambar piksel secara manual.** Render halus resolusi tinggi → turunkan ke grid ([teknik inti](https://makespritewithclaude.pages.dev/md/hires-to-pixel.md)).
 2. **Semua koordinat tujuan adalah integer.** Bulatkan saat render, bukan saat simulasi.
-3. **Palet terbatas** (≤ 6 warna per material) dengan ramp dan dither Bayer ([palet](https://kintil555.github.io/makespritewithclaude/md/dither-palette.md)).
-4. **Efek = lapisan disc berpiksel**, bukan gradient/`arc()` anti-alias ([buffer](https://kintil555.github.io/makespritewithclaude/md/pixel-buffer.md)).
+3. **Palet terbatas** (≤ 6 warna per material) dengan ramp dan dither Bayer ([palet](https://makespritewithclaude.pages.dev/md/dither-palette.md)).
+4. **Efek = lapisan disc berpiksel**, bukan gradient/`arc()` anti-alias ([buffer](https://makespritewithclaude.pages.dev/md/pixel-buffer.md)).
 5. **Alpha hanya 0 atau 255** pada hasil akhir (anti-halo).
 6. **Verifikasi dengan melihat**: render ke PNG, perbesar (nearest-neighbor), periksa; jangan menebak.
 
@@ -28,7 +28,7 @@ Padding atlas   : [0px | 1px]
 Pivot           : [mis. bottom-center (16,28)]
 Latar uji       : [mis. #14121c gelap]
 ```
-Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersih, (3) panduan texturing & optimasi (format, kompresi warna, `image-rendering`). Contoh jawaban lengkap: [sprite sheet](https://kintil555.github.io/makespritewithclaude/md/sprite-sheet.md).
+Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersih, (3) panduan texturing & optimasi (format, kompresi warna, `image-rendering`). Contoh jawaban lengkap: [sprite sheet](https://makespritewithclaude.pages.dev/md/sprite-sheet.md).
 
 ## Aturan ketat untuk AI
 - **Grid & padding**: X/Y integer, tanpa desimal (cegah blur sub-pixel). Hitung `x = P + i·(FR+P)`.
@@ -40,10 +40,10 @@ Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersi
 
 ## Urutan kerja yang disarankan
 1. Tentukan spesifikasi (template di atas).
-2. Buat **rig** halus (tulang/IK atau persamaan bentuk) — [stickman IK](https://kintil555.github.io/makespritewithclaude/md/hires-to-pixel.md) atau [karakter dari persamaan](https://kintil555.github.io/makespritewithclaude/md/procedural-character.md).
+2. Buat **rig** halus (tulang/IK atau persamaan bentuk) — [stickman IK](https://makespritewithclaude.pages.dev/md/hires-to-pixel.md) atau [karakter dari persamaan](https://makespritewithclaude.pages.dev/md/procedural-character.md).
 3. Turunkan ke piksel dengan `PX.pixelize` / pemetaan per-piksel.
-4. Tambah efek dari katalog: [tracer](https://kintil555.github.io/makespritewithclaude/md/tracer-muzzle.md), [ledakan](https://kintil555.github.io/makespritewithclaude/md/explosion.md), [lubang](https://kintil555.github.io/makespritewithclaude/md/crater-hole.md), [api](https://kintil555.github.io/makespritewithclaude/md/fire.md), [neutron/pulsar](https://kintil555.github.io/makespritewithclaude/md/neutron-psr.md).
-5. Bake atlas ([sprite sheet](https://kintil555.github.io/makespritewithclaude/md/sprite-sheet.md)) dan uji di latar gelap.
+4. Tambah efek dari katalog: [tracer](https://makespritewithclaude.pages.dev/md/tracer-muzzle.md), [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md), [lubang](https://makespritewithclaude.pages.dev/md/crater-hole.md), [api](https://makespritewithclaude.pages.dev/md/fire.md), [neutron/pulsar](https://makespritewithclaude.pages.dev/md/neutron-psr.md).
+5. Bake atlas ([sprite sheet](https://makespritewithclaude.pages.dev/md/sprite-sheet.md)) dan uji di latar gelap.
 6. Periksa checklist.
 
 ## Checklist verifikasi
@@ -70,7 +70,7 @@ Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersi
 
 > Teknik inti — gambar karakter sebagai vektor halus beresolusi tinggi, lalu ubah per sel menjadi piksel ber-shading dan ber-outline.
 
-Kategori: Teknik Rendering · URL: https://kintil555.github.io/makespritewithclaude/articles/hires-to-pixel.html
+Kategori: Teknik Rendering · URL: https://makespritewithclaude.pages.dev/articles/hires-to-pixel.html
 
 ## Masalah
 Menggambar karakter bergerak langsung dari piksel (garis Bresenham, rotasi manual) menghasilkan bentuk bergerigi tidak konsisten: lengan menipis, kepala berkedip, outline pecah. AI sangat sering gagal di sini.
@@ -192,7 +192,7 @@ PX.demos.hires = (host) => {
 
 > Shading bola/benda dengan 5–6 warna dan matriks Bayer 4×4 sebagai ganti gradient, supaya tetap terlihat pixel art.
 
-Kategori: Teknik Rendering · URL: https://kintil555.github.io/makespritewithclaude/articles/dither-palette.html
+Kategori: Teknik Rendering · URL: https://makespritewithclaude.pages.dev/articles/dither-palette.html
 
 ## Prinsip
 Gradient halus langsung merusak gaya piksel. Gunakan **ramp** 5–6 warna (gelap → terang) dan pilih indeks per piksel dari nilai cahaya `k` (0..1):
@@ -358,7 +358,7 @@ PX.line = (c, x0, y0, x1, y1, col) => {
 
 > Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData.
 
-Kategori: Teknik Rendering · URL: https://kintil555.github.io/makespritewithclaude/articles/pixel-buffer.html
+Kategori: Teknik Rendering · URL: https://makespritewithclaude.pages.dev/articles/pixel-buffer.html
 
 ## Mengapa
 Efek (api, ledakan, partikel) berarti ratusan lingkaran per frame. Memanggil `fillRect(x,y,1,1)` per piksel mahal dan `arc()` menghasilkan anti-alias. Solusi: tulis langsung ke `Uint32Array` yang berbagi memori dengan `ImageData`, lalu `putImageData` **sekali** per frame.
@@ -442,7 +442,7 @@ function frame() {
 
 > Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih.
 
-Kategori: Teknik Rendering · URL: https://kintil555.github.io/makespritewithclaude/articles/sprite-sheet.html
+Kategori: Teknik Rendering · URL: https://makespritewithclaude.pages.dev/articles/sprite-sheet.html
 
 Panduan ini menjawab spesifikasi umum: *frame tunggal 32×32, animasi Walk 6 frame, JS Canvas + CSS, gaya retro pixel art, padding 1px, pivot bottom-center.* Ganti angka sesuai proyek.
 
@@ -531,8 +531,8 @@ PX.demos.sheet = (host) => {
 `steps(6)` melompat 33px per langkah (32 + 1 padding), jadi tiap langkah tepat di frame berikutnya.
 
 ## 3. Texturing dan optimasi aset
-- **Palet**: 16–32 warna total. Tiap material 4–6 warna (lihat [dither & palet](https://kintil555.github.io/makespritewithclaude/md/dither-palette.md)). Hindari hitam murni; outline pakai warna sangat gelap bergeser hue.
-- **Shading**: 1 sumber cahaya tetap (kiri-atas). Highlight di tepi atas, shade di tepi bawah, outline 1px, dither hanya di area luas. Teknik ini otomatis dihasilkan oleh [pixelize](https://kintil555.github.io/makespritewithclaude/md/hires-to-pixel.md).
+- **Palet**: 16–32 warna total. Tiap material 4–6 warna (lihat [dither & palet](https://makespritewithclaude.pages.dev/md/dither-palette.md)). Hindari hitam murni; outline pakai warna sangat gelap bergeser hue.
+- **Shading**: 1 sumber cahaya tetap (kiri-atas). Highlight di tepi atas, shade di tepi bawah, outline 1px, dither hanya di area luas. Teknik ini otomatis dihasilkan oleh [pixelize](https://makespritewithclaude.pages.dev/md/hires-to-pixel.md).
 - **Format**: PNG indexed (PNG-8) — kecil dan palet tepat. Kompres lossless dengan `oxipng -o max` atau `pngquant --nofs --quality 100`. Jangan JPEG. WebP lossless boleh; hindari WebP/AVIF lossy karena menodai piksel.
 - **Properti render browser**:
   ```css
@@ -559,7 +559,7 @@ PX.demos.sheet = (host) => {
 
 > Jejak peluru 3 tingkat (inti 1px, pasangan piksel, ekor gelap), kilatan moncong dari sinar acak, dan percikan berpantul.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/tracer-muzzle.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/tracer-muzzle.html
 
 ## Anatomi tracer
 Tracer yang baik terbaca di sudut apa pun karena **ketebalan** dan **kecerahan** berubah sepanjang jejak:
@@ -644,7 +644,7 @@ PX.demos.tracer = (host) => {
 
 > Kilat putih, gumpalan bola api 5 lapis, sinar radiasi, gelombang kejut bergelombang, partikel, dan asap — dengan palet api atau neutron.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/explosion.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/explosion.html
 
 ## Lapisan (urutan gambar)
 1. **Asap** (di belakang): disc besar bertahap gelap, alpha ~0.55 menurun.
@@ -746,7 +746,7 @@ PX.demos.blast = (host) => {
 
 > Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/crater-hole.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/crater-hole.html
 
 ## Langkah
 1. **Bentuk lubang**: radius per sudut `r·(1 + 0.12 sin3θ + 0.07 sin5θ + 0.04 sin9θ)` dengan fase acak. Piksel di dalamnya ditandai `hole=1`.
@@ -834,7 +834,7 @@ PX.demos.crater = (host) => {
 
 > Ramp 9 warna, partikel membesar saat menua, inti bergeser ke atas, highlight kecil, glow additive, dan asap.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/fire.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/fire.html
 
 ## Resep
 - **Ramp** (panas → dingin): `#fff, #fff3a6, #ffe26b, #ffc23d, #ff8a2a, #f2561d, #c9281f, #8a1f17, #4a1712`.
@@ -889,14 +889,14 @@ PX.demos.fire = (host) => {
 
 > Proyektil bola neutron biru dengan jejak, ledakan Cherenkov, dan pulsar ber-sinar menyapu dengan garis medan dipol.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/neutron-psr.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/neutron-psr.html
 
 ## Bola neutron (proyektil)
 - Bola `R≈3.3` ter-shade 5 ambang Lambert (`l<.2, .45, .7, .9`) dengan arah cahaya tetap kiri-atas.
 - Tepi yang gelap dinaikkan satu tingkat agar siluet terbaca di latar gelap.
 - **Jejak**: 18 disc di belakang, mengecil dan alpha `(1−u)^1.4`; 40% pertama warna terang.
 - 3 percikan piksel acak mengorbit bola tiap frame.
-- Mengenai target → ledakan dengan palet neutron (lihat [ledakan](https://kintil555.github.io/makespritewithclaude/md/explosion.md)).
+- Mengenai target → ledakan dengan palet neutron (lihat [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md)).
 
 > **Demo interaktif "neutron"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
 
@@ -998,7 +998,7 @@ PX.demos.pulsar = (host) => {
 
 > Setiap piksel menanyakan koordinat lokal badan; bentuk berasal dari persamaan elips/kapsul, wajah dari bitmap string, outline dari siluet.
 
-Kategori: Karakter Prosedural · URL: https://kintil555.github.io/makespritewithclaude/articles/procedural-character.html
+Kategori: Karakter Prosedural · URL: https://makespritewithclaude.pages.dev/articles/procedural-character.html
 
 ## Pendekatan "per-piksel query"
 Alih-alih menaruh piksel satu per satu, untuk tiap piksel layar:

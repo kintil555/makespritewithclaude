@@ -2,7 +2,7 @@
 
 > Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData.
 
-Kategori: Teknik Rendering · URL: https://kintil555.github.io/makespritewithclaude/articles/pixel-buffer.html
+Kategori: Teknik Rendering · URL: https://makespritewithclaude.pages.dev/articles/pixel-buffer.html
 
 ## Mengapa
 Efek (api, ledakan, partikel) berarti ratusan lingkaran per frame. Memanggil `fillRect(x,y,1,1)` per piksel mahal dan `arc()` menghasilkan anti-alias. Solusi: tulis langsung ke `Uint32Array` yang berbagi memori dengan `ImageData`, lalu `putImageData` **sekali** per frame.

@@ -2,7 +2,7 @@
 
 > Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih.
 
-Kategori: Teknik Rendering · URL: https://kintil555.github.io/makespritewithclaude/articles/sprite-sheet.html
+Kategori: Teknik Rendering · URL: https://makespritewithclaude.pages.dev/articles/sprite-sheet.html
 
 Panduan ini menjawab spesifikasi umum: *frame tunggal 32×32, animasi Walk 6 frame, JS Canvas + CSS, gaya retro pixel art, padding 1px, pivot bottom-center.* Ganti angka sesuai proyek.
 
@@ -91,8 +91,8 @@ PX.demos.sheet = (host) => {
 `steps(6)` melompat 33px per langkah (32 + 1 padding), jadi tiap langkah tepat di frame berikutnya.
 
 ## 3. Texturing dan optimasi aset
-- **Palet**: 16–32 warna total. Tiap material 4–6 warna (lihat [dither & palet](https://kintil555.github.io/makespritewithclaude/md/dither-palette.md)). Hindari hitam murni; outline pakai warna sangat gelap bergeser hue.
-- **Shading**: 1 sumber cahaya tetap (kiri-atas). Highlight di tepi atas, shade di tepi bawah, outline 1px, dither hanya di area luas. Teknik ini otomatis dihasilkan oleh [pixelize](https://kintil555.github.io/makespritewithclaude/md/hires-to-pixel.md).
+- **Palet**: 16–32 warna total. Tiap material 4–6 warna (lihat [dither & palet](https://makespritewithclaude.pages.dev/md/dither-palette.md)). Hindari hitam murni; outline pakai warna sangat gelap bergeser hue.
+- **Shading**: 1 sumber cahaya tetap (kiri-atas). Highlight di tepi atas, shade di tepi bawah, outline 1px, dither hanya di area luas. Teknik ini otomatis dihasilkan oleh [pixelize](https://makespritewithclaude.pages.dev/md/hires-to-pixel.md).
 - **Format**: PNG indexed (PNG-8) — kecil dan palet tepat. Kompres lossless dengan `oxipng -o max` atau `pngquant --nofs --quality 100`. Jangan JPEG. WebP lossless boleh; hindari WebP/AVIF lossy karena menodai piksel.
 - **Properti render browser**:
   ```css

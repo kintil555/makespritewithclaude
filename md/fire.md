@@ -2,7 +2,7 @@
 
 > Ramp 9 warna, partikel membesar saat menua, inti bergeser ke atas, highlight kecil, glow additive, dan asap.
 
-Kategori: Efek (VFX) · URL: https://kintil555.github.io/makespritewithclaude/articles/fire.html
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/fire.html
 
 ## Resep
 - **Ramp** (panas → dingin): `#fff, #fff3a6, #ffe26b, #ffc23d, #ff8a2a, #f2561d, #c9281f, #8a1f17, #4a1712`.

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://kintil555.github.io/makespritewithclaude/sitemap.xml
+Sitemap: https://makespritewithclaude.pages.dev/sitemap.xml
