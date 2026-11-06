@@ -125,7 +125,7 @@ PX.demos.pulsar = (host) => {
   const SPIN = 10, AXT = 0.35, TW = 96, TH = 48, TEX = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
   for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {                       // bake SEKALI: peta lon/lat (tile di lon). fbm besar + kontras -> bercak gelap & titik panas yang jelas saat berputar
     const f = PX.fbm(x / 12, y / 12, 21, TW / 12, 0, 4);
-    TEX[y * TW + x] = PX.clamp((f - 0.6) * 6, 0, 1);                                // bercak: hanya puncak fbm (≈15% area) -> bola bersih, bercak sedikit
+    TEX[y * TW + x] = PX.clamp((f - 0.64) * 5, 0, 1);                                // bercak: hanya puncak fbm (≈15% area) -> bola bersih, bercak sedikit
   }
   const motes = Array.from({ length: 16 }, () => ({ d: Math.random() * HR, a: Math.random() * 6.283, sp: 1 + Math.random() * 1.5, w: (Math.random() - 0.5) * 0.25 }));
   const put = (x, y, ci) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4, k = V[ci]; img.data[i] = k[0]; img.data[i + 1] = k[1]; img.data[i + 2] = k[2]; img.data[i + 3] = 255; };
@@ -190,9 +190,9 @@ PX.demos.pulsar = (host) => {
       const tu = (((lon / 6.2832) % 1) + 1) % 1, tx = (tu * TW) | 0, ty = PX.clamp(((lat / Math.PI + 0.5) * TH) | 0, 0, TH - 1);
       const rim = PX.clamp((r2 - 0.45) / 0.55, 0, 1), fl = PX.hash(tx >> 1, ty >> 1, 91);                    // rim: 0 di tengah -> 1 di tepi; fl: bintik tetap di tekstur, jadi ikut berputar
       const sp = TEX[ty * TW + tx], pn = PX.hash(tx, ty, 123);                                              // sp: bercak sedikit (di tekstur); pn: butiran partikel halus per texel -> keduanya ikut berputar
-      const k = PX.clamp((0.78 + 0.22 * nz - 0.2 * sp) * (1 - 0.55 * rim * rim), 0, 1);                      // bola BERCAHAYA: tanpa arah cahaya; terang di tengah, makin gelap ke tepi
-      let ci = 2 + PX.tone(k, tx, ty, 4, 0.5);                                                                  // dither di koordinat TEKSTUR (bukan layar) -> pola dither ikut berputar
-      if (r2 < 0.72 && pn < 0.1) ci = Math.max(3, ci - 1);   // sedikit butiran putih-kebiruan di dalam bola (jarang), berputar bersama bola
+      const k = PX.clamp((0.6 + 0.2 * nz - 0.55 * sp) * (1 - 0.6 * rim * rim), 0, 1);                      // bola BERCAHAYA: tanpa arah cahaya; terang di tengah, makin gelap ke tepi
+      let ci = 2 + PX.tone(k, tx, ty, 4, 0.7);                                                                  // dither di koordinat TEKSTUR (bukan layar) -> pola dither ikut berputar
+      if (r2 < 0.72) { if (pn < 0.06) ci = Math.max(3, ci - 1); else if (pn > 0.97) ci = 5; }   // sedikit butiran putih-kebiruan di dalam bola (jarang), berputar bersama bola
       if (r2 > 0.6 && fl > 0.9) ci = fl > 0.96 ? 5 : 4;                                                   // sedikit putih di pinggiran (berputar bersama bola)
       else if (r2 > 0.8) ci = Math.min(ci, fl > 0.5 ? 3 : 2);                                              // pinggiran luar: biru gelap
       put(X, Y, ci);
@@ -203,7 +203,7 @@ PX.demos.pulsar = (host) => {
       const s = sparks[i]; s.life -= dt; if (s.life <= 0) { sparks.splice(i, 1); continue; }
       s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 1 - 1.5 * dt; s.vy *= 1 - 1.5 * dt; put(s.x, s.y, s.life > s.m * 0.6 ? 5 : s.life > s.m * 0.3 ? 3 : 2);
     }
-    lit.glow(CX, CY, R + 7, V[4], 0.16);                                              // glow putih di sekitar bola
+    lit.glow(CX, CY, R + 5, V[4], 0.07);                                              // glow putih di sekitar bola
     lit.glow(CX, CY, 34 + 4 * pulse, V[1], 0.22 + 0.08 * pulse);   // cahaya: halo bintang + titik terang sepanjang sinar (lebih terang saat menyapu cepat)
     for (const sg of [-1, 1]) { lit.glow(CX + ca * sg * Lb * 0.35, CY + sa * sg * Lb * 0.35, 16, V[3], 0.14 + 0.16 * speed); lit.glow(CX + ca * sg * Lb * 0.75, CY + sa * sg * Lb * 0.75, 10, V[2], 0.1 + 0.12 * speed); }
     c.putImageData(img, 0, 0); lit.flush(c);
