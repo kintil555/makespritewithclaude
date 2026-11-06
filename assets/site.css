@@ -63,12 +63,13 @@ input[type=range]::-moz-range-track{height:calc(var(--u)*7);background:url(ui/fi
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:calc(var(--u)*8);height:calc(var(--u)*8);margin-top:calc(var(--u)*-.5);border:0;border-radius:0;background:url(ui/slider-head.png) center/100% 100% no-repeat;image-rendering:pixelated}
 input[type=range]::-moz-range-thumb{width:calc(var(--u)*8);height:calc(var(--u)*8);border:0;border-radius:0;background:url(ui/slider-head.png) center/100% 100% no-repeat;image-rendering:pixelated}
 input[type=range]:hover::-webkit-slider-thumb{filter:brightness(1.3)}
-/* scrollbar */
-*{scrollbar-width:auto;scrollbar-color:#6b6b6b #1c1c1c}
-::-webkit-scrollbar{width:calc(var(--u)*5);height:calc(var(--u)*5);background:#1c1c1c}
-::-webkit-scrollbar-thumb{background:url(ui/scrollbar.png) center/100% 100%;image-rendering:pixelated;border:0}
+/* scrollbar: thumb = scrollbar.png (9-slice), track gelap; slider (range) memakai slider-head.png + field/fill */
+::-webkit-scrollbar{width:calc(var(--u)*6);height:calc(var(--u)*6);background:#171717}
+::-webkit-scrollbar-track{background:#171717;border-left:var(--u) solid #0e0e0e}
+::-webkit-scrollbar-thumb{border:0;border-style:solid;border-width:calc(var(--u)*3);border-image:url(ui/scrollbar.png) 3 fill/calc(var(--u)*3) stretch;background:none;min-height:calc(var(--u)*10);min-width:calc(var(--u)*10);image-rendering:pixelated}
 ::-webkit-scrollbar-thumb:hover{filter:brightness(1.3)}
-::-webkit-scrollbar-corner{background:#1c1c1c}
+::-webkit-scrollbar-corner{background:#171717}
+@supports not selector(::-webkit-scrollbar){*{scrollbar-color:#6b6b6b #171717}}
 th{background:#333;color:#fff}th,td{border-color:#555}
 @media (max-width:600px){:root{--u:2px;--uh:4px}body{font-size:18px}}
 
