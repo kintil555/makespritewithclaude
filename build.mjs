@@ -64,8 +64,8 @@ ${md ? `<link rel="alternate" type="text/markdown" href="${SITE}/${md}" title="M
 <script type="application/ld+json">${JSON.stringify(jsonld)}</script>
 </head>
 <body>
+<header class="top"><a class="brand" href="${r}index.html"><img class="logo" src="${r}favicon-32.png" width="32" height="32" alt="" aria-hidden="true">${NAME}</a></header>
 <div class="shell">
-<header class="top"><a class="brand" href="${r}index.html"><img class="logo" src="${r}favicon-32.png" width="16" height="16" alt="" aria-hidden="true">${NAME}</a></header>
 <div class="layout">${sidebar(r, cur)}${body}</div>
 <footer><p>Akses mesin: <a href="${r}llms.txt">llms.txt</a> · <a href="${r}llms-full.txt">llms-full.txt</a> · <a href="${r}index.json">index.json</a> · <a href="${r}sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p>
 <p class="credit">© 2026 voxel. Seluruh hak cipta dilindungi.</p>
