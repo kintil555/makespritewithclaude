@@ -28,6 +28,8 @@ Bintang neutron berputar dengan sumbu magnet miring:
 - **Ayunan smooth**: `SNAP` kecil (mendekati sinus) + interpolasi sub-langkah: sudut frame lalu→sekarang dibagi 5, tiap sinar dirender di semua sub-sudut (yang lama lebih redup) dan diambil nilai maksimum → jejak halus tanpa loncatan.
 - **Efek**: halo cahaya berdenyut, cincin + percikan di tiap ujung ayunan, bintang latar berkedip.
 - **Bola berputar cepat**: peta tekstur lon/lat (64×32, di-bake sekali dengan `fbm` yang tile di sumbu lon). Tiap piksel dipetakan terbalik ke titik bola `(nx,ny,nz)`, sumbu putar dimiringkan, `lon = atan2(ax,nz) + t·ω`, `lat = asin(ay)`, lalu ambil texel. Cahaya tetap, tekstur berputar (ω = 10 rad/s). Bola **bercahaya (emisif)**, bukan bola berlampu: tanpa arah cahaya, `k = (0.4 + 0.26·nz − 0.4·bercak)·(1 − 0.85·rim²)` (terang di tengah, gelap di tepi). Bercak sedikit: hanya puncak `fbm` (`(f−0.6)·6`, ±15% area). **Dither dihitung di koordinat tekstur**: `PX.tone(k, tx, ty, 5, 0.9)` — Bayer memakai `(tx,ty)` bukan `(x,y)` layar, sehingga pola dither ikut berputar (jangan memakai koordinat layar: dither akan tampak menempel diam di atas bola). Butiran partikel: `hash(tx,ty) > 0.93` → +2 warna (terang), `< 0.04` → −2 (gelap), hanya di bagian dalam (`r²<0.72`), juga ikut berputar sehingga putaran terasa. **Halo luar**: tipis dan jarang: tiap piksel di `R..R+8` menyala jika `(1−d/8)^1.5 · (0.04 + 0.38·noise(x/7 + 0.1t, y/7 − 0.07t)) > bayer(x,y)` — noise bergeser sangat pelan; ditambah 16 partikel yang melayang keluar 1–2.5 px/s. **Pinggiran**: `rim = (r²−0.45)/0.55`, `k ×= 1 − 0.85·rim²` sehingga tepi menjadi biru gelap; `r²>0.8` dipaksa ke 2 warna tergelap; bintik putih = `hash(tx>>1, ty>>1) > 0.9` pada `r²>0.6`. Karena bintik di-hash dari koordinat **tekstur** (bukan layar), pinggiran gelap + putih ikut berputar bersama bola.
+- **GIF loop mulus**: seluruh demo pulsar adalah fungsi murni `draw(t)` tanpa state. Semua frekuensi dibulatkan ke kelipatan `2π/LOOP` (LOOP = 6 s), cincin/percikan/partikel dihitung dari waktu sejak kejadian dengan `hash` (bukan `Math.random`), sehingga frame ke-150 identik dengan frame 0. Tombol **Unduh GIF** merender 150 frame @25 fps lalu mengenkodenya (`PX.gif`, palet 256 warna, loop tak hingga).
+
 
 {{demo:pulsar}}
 
@@ -35,3 +37,5 @@ Bintang neutron berputar dengan sumbu magnet miring:
 {{code:44-demo-neutron}}
 
 {{code:45-demo-pulsar}}
+
+{{code:18-gif}}

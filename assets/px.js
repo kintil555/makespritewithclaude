@@ -564,6 +564,75 @@ PX.Fizz = class {
   }
 };
 
+/* 18-gif.js */
+// 18-gif.js — PX.gif: encoder GIF89a (palet global 256 warna, LZW) + PX.gifButton: tombol "Unduh GIF" untuk demo yang periodik.
+// Loop mulus = demo digambar sebagai fungsi waktu murni draw(t) yang periodik dengan periode `loop` detik; frame ke-N (t = N/fps) berikutnya identik dengan frame 0.
+PX.gif = (frames, w, h, delayCs, scale = 1) => {                                  // frames: [Uint8ClampedArray RGBA w*h*4] sudah dikomposit (alpha 255)
+  const B = 6, SH = 8 - B, KN = 1 << (3 * B), key = (r, g, b) => ((r >> SH) << (2 * B)) | ((g >> SH) << B) | (b >> SH);
+  const cnt = new Int32Array(KN), sr = new Float64Array(KN), sg = new Float64Array(KN), sb = new Float64Array(KN);
+  for (const f of frames) for (let i = 0; i < f.length; i += 4) { const k = key(f[i], f[i + 1], f[i + 2]); cnt[k]++; sr[k] += f[i]; sg[k] += f[i + 1]; sb[k] += f[i + 2]; }
+  const ks = []; for (let k = 0; k < KN; k++) if (cnt[k]) ks.push(k);
+  ks.sort((a, b) => cnt[b] - cnt[a]);
+  const pal = ks.slice(0, 256).map((k) => [sr[k] / cnt[k], sg[k] / cnt[k], sb[k] / cnt[k]]); while (pal.length < 256) pal.push([0, 0, 0]);
+  const near = new Int16Array(KN).fill(-1), nearest = (k) => {                       // palet terdekat untuk satu bucket warna (di-cache)
+    if (near[k] >= 0) return near[k];
+    const r = sr[k] / cnt[k], g = sg[k] / cnt[k], b = sb[k] / cnt[k]; let best = 0, bd = 1e9;
+    for (let i = 0; i < 256; i++) { const d = (pal[i][0] - r) ** 2 + (pal[i][1] - g) ** 2 + (pal[i][2] - b) ** 2; if (d < bd) { bd = d; best = i; } }
+    return (near[k] = best);
+  };
+  const W = w * scale, H = h * scale, out = [], u16 = (v) => out.push(v & 255, v >> 8);
+  out.push(...[...'GIF89a'].map((c) => c.charCodeAt(0))); u16(W); u16(H); out.push(0xf7, 0, 0);
+  for (const c of pal) out.push(Math.round(c[0]), Math.round(c[1]), Math.round(c[2]));
+  out.push(0x21, 0xff, 0x0b, ...[...'NETSCAPE2.0'].map((c) => c.charCodeAt(0)), 3, 1, 0, 0, 0);   // loop tak hingga
+  const table = new Int32Array(1 << 20), stamp = new Int32Array(1 << 20); let gen = 0;
+  for (const f of frames) {
+    const px = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) px[i] = nearest(key(f[i * 4], f[i * 4 + 1], f[i * 4 + 2]));
+    const idx = new Uint8Array(W * H);                                              // perbesar skala bulat (nearest) agar piksel tetap tajam
+    for (let y = 0; y < H; y++) { const sy = ((y / scale) | 0) * w, o = y * W; for (let x = 0; x < W; x++) idx[o + x] = px[sy + ((x / scale) | 0)]; }
+    out.push(0x21, 0xf9, 4, 4); u16(delayCs); out.push(0, 0);                       // disposal 1, delay
+    out.push(0x2c); u16(0); u16(0); u16(W); u16(H); out.push(0, 8);                 // image descriptor + min code size 8
+    gen++; let size = 9, next = 258, cur = 0, nb = 0, blk = [];
+    const put = (b) => { blk.push(b); if (blk.length === 255) { out.push(255, ...blk); blk = []; } };
+    const emit = (code) => { cur |= code << nb; nb += size; while (nb >= 8) { put(cur & 255); cur >>>= 8; nb -= 8; } };
+    emit(256); let prefix = idx[0];
+    for (let i = 1; i < idx.length; i++) {
+      const k = idx[i], kk = (prefix << 8) | k;
+      if (stamp[kk] === gen) { prefix = table[kk]; continue; }
+      emit(prefix);
+      if (next === 4096) { emit(256); gen++; size = 9; next = 258; }
+      else { if (next >= 1 << size) size++; table[kk] = next++; stamp[kk] = gen; }
+      prefix = k;
+    }
+    emit(prefix); emit(257); if (nb > 0) put(cur & 255);
+    if (blk.length) out.push(blk.length, ...blk); out.push(0);
+  }
+  out.push(0x3b);
+  return new Blob([new Uint8Array(out)], { type: 'image/gif' });
+};
+
+// Tombol unduh: render `loop` detik pada `fps`, memanggil draw(t) lalu membaca kanvas (dikomposit di atas warna latar CSS). draw HARUS periodik dalam `loop`.
+PX.gifButton = (host, cv, draw, o = {}) => {
+  const { loop = 6, fps = 25, scale = 4, bg = '#0a0a16', name = 'demo' } = o, bgc = PX.hex(bg), c = cv.getContext('2d', { willReadFrequently: true });
+  const b = PX.ui(host).button('Unduh GIF', async () => {
+    if (b.disabled) return; b.disabled = true;
+    try {
+      const n = Math.round(loop * fps), frames = [];
+      for (let k = 0; k < n; k++) {
+        draw(k / fps);                                                              // frame n identik dengan frame 0 -> loop mulus
+        const d = c.getImageData(0, 0, cv.width, cv.height).data, f = new Uint8ClampedArray(d.length);
+        for (let i = 0; i < d.length; i += 4) { const a = d[i + 3] / 255; f[i] = d[i] * a + bgc[0] * (1 - a); f[i + 1] = d[i + 1] * a + bgc[1] * (1 - a); f[i + 2] = d[i + 2] * a + bgc[2] * (1 - a); f[i + 3] = 255; }
+        frames.push(f);
+        if (k % 10 === 9) { b.textContent = `Merender ${Math.round(((k + 1) / n) * 100)}%`; await new Promise((r) => setTimeout(r)); }
+      }
+      b.textContent = 'Menyusun GIF…'; await new Promise((r) => setTimeout(r, 20));
+      const url = URL.createObjectURL(PX.gif(frames, cv.width, cv.height, Math.round(100 / fps), scale)), a = document.createElement('a');
+      a.href = url; a.download = name + '.gif'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) { console.error(e); alert('Gagal membuat GIF: ' + e.message); }
+    b.textContent = 'Unduh GIF'; b.disabled = false;
+  });
+  return b;
+};
+
 /* 20-pixelize.js */
 // 20-pixelize.js — render halus resolusi tinggi -> grid piksel (tanpa menggambar model piksel manual)
 // Langkah: (1) gambar vektor halus di canvas besar  (2) bagi jadi sel B×B  (3) sel jadi piksel bila
@@ -1177,64 +1246,59 @@ PX.demos.pulsar = (host) => {
   const W = 128, H = 72, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), img = c.createImageData(W, H), lit = new PX.Light(W, H);
   cv.style.background = '#0a0a16';
   const V = ['#241a66', '#2f3cb4', '#4f7bff', '#8fcbff', '#dff2ff', '#ffffff'].map(PX.hex), CX = W / 2, CY = H / 2, R = 18, HR = 12;   // R: radius bola, HR: tebal halo dither di luar bola
-  const BASE = -0.72, SWING = Math.PI / 8, FREQ = 8.5, SNAP = 0.9;               // sumbu miring, amplitudo 22.5°, ayunan cepat (periode ≈ 0.74 s), SNAP kecil = gerak halus (mendekati sinus)
-  const NORM = Math.tanh(SNAP), sparks = [], rings = [], NSUB = 5, TAU = 0.5, CT = Math.cos(TAU), ST = Math.sin(TAU); let prevCos = 1, thPrev = null;   // NSUB: sub-langkah interpolasi sudut per frame; TAU: sumbu miring ke arah kamera (untuk medan 3D)
-  const SPIN = 10, AXT = 0.35, TW = 96, TH = 48, TEX = new Float32Array(TW * TH), CON = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
+  const BASE = -0.72, SWING = Math.PI / 8, SNAP = 0.9, LOOP = 6, TP = (2 * Math.PI) / LOOP, FREQ = 8 * TP;   // LOOP: periode animasi (s). Semua frekuensi = kelipatan bulat 2π/LOOP -> animasi persis berulang tiap LOOP detik (dasar GIF loop mulus). FREQ ≈ 8.4 rad/s               // sumbu miring, amplitudo 22.5°, ayunan cepat (periode ≈ 0.74 s), SNAP kecil = gerak halus (mendekati sinus)
+  const NORM = Math.tanh(SNAP), NSUB = 5, TAU = 0.5, CT = Math.cos(TAU), ST = Math.sin(TAU);   // NSUB: sub-langkah interpolasi sudut per frame; TAU: sumbu miring ke arah kamera (untuk medan 3D)
+  const SPIN = 10 * TP, AXT = 0.35, TW = 96, TH = 48, TEX = new Float32Array(TW * TH), CON = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
   for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {                       // bake SEKALI: peta lon/lat (tile di lon). fbm besar + kontras -> bercak gelap & titik panas yang jelas saat berputar
     const f = PX.fbm(x / 12, y / 12, 21, TW / 12, 0, 4);
     const lt = (y / TH - 0.5) * Math.PI, g = PX.fbm(x / 16, y / 16, 33, TW / 16, 0, 4);                // benua: bercak tebal & gelap, hanya di sekitar katulistiwa (lat≈0), sebagian saja
     CON[y * TW + x] = PX.clamp((g - 0.56) * 6, 0, 1) * Math.exp(-((lt / 0.5) ** 2));
     TEX[y * TW + x] = PX.clamp((f - 0.5) * 5, 0, 1);                                // bercak: hanya puncak fbm (≈15% area) -> bola bersih, bercak sedikit
   }
-  const motes = Array.from({ length: 16 }, () => ({ d: Math.random() * HR, a: Math.random() * 6.283, sp: 1 + Math.random() * 1.5, w: (Math.random() - 0.5) * 0.25 }));
   const put = (x, y, ci, al = 255) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4, k = V[ci]; img.data[i] = k[0]; img.data[i + 1] = k[1]; img.data[i + 2] = k[2]; img.data[i + 3] = al; };
-  PX.loop(host, (dt, t) => {
+  const draw = (t) => {
     img.data.fill(0); lit.clear();
-    const sw = Math.tanh(SNAP * Math.sin(t * FREQ)) / NORM, th = BASE + SWING * sw, ca = Math.cos(th), sa = Math.sin(th), tilt = 0.7 + 0.3 * Math.abs(Math.cos(t * 0.6)), Lb = 56 * tilt;
-    const speed = Math.abs(Math.cos(t * FREQ)), pulse = 0.5 + 0.5 * Math.sin(t * 0.9);   // speed: 1 saat menyapu cepat, 0 di ujung ayunan
-    const cn = Math.cos(t * FREQ);                                                  // ujung ayunan: cos berganti tanda -> cincin + percikan dari kedua ujung sinar
-    if (cn * prevCos < 0) {
-      rings.push({ t: 0 });
-      for (const sg of [-1, 1]) for (let i = 0; i < 9; i++) { const g = th + (sg < 0 ? Math.PI : 0) + (Math.random() - 0.5) * 0.5, v = 20 + Math.random() * 55; sparks.push({ x: CX + Math.cos(th) * sg * R, y: CY + Math.sin(th) * sg * R, vx: Math.cos(g) * v, vy: Math.sin(g) * v, life: 0.35 + Math.random() * 0.5, m: 0.8 }); }
-    }
-    prevCos = cn;
+    const thAt = (u) => BASE + SWING * Math.tanh(SNAP * Math.sin(u * FREQ)) / NORM, th = thAt(t), ca = Math.cos(th), sa = Math.sin(th), tilt = 0.7 + 0.3 * Math.abs(Math.cos((t * TP) / 2)), Lb = 56 * tilt;
+    const speed = Math.abs(Math.cos(t * FREQ)), pulse = 0.5 + 0.5 * Math.sin(t * TP);   // speed: 1 saat menyapu cepat, 0 di ujung ayunan
+    const em = Math.floor((t * FREQ - Math.PI / 2) / Math.PI);                       // indeks ujung ayunan terakhir (cos(FREQ·t) berganti tanda): cincin + percikan dihitung SEBAGAI FUNGSI waktu sejak kejadian -> tanpa state, periodik
+    const evSign = (m) => (((m % 2) + 2) % 2 === 0 ? 1 : -1), evT = (m) => (Math.PI / 2 + m * Math.PI) / FREQ;
     for (let i = 0; i < 46; i++) {                                                   // bintang latar berkedip
       const sx = (PX.hash(i, 1, 77) * W) | 0, sy = (PX.hash(i, 2, 77) * H) | 0;
-      if (PX.hash(i, Math.floor(t * 3 + i), 78) > 0.35) put(sx, sy, PX.hash(i, 3, 77) < 0.2 ? 2 : 0);
+      if (PX.hash(i, (Math.floor(t * 3) + i) % 18, 78) > 0.35) put(sx, sy, PX.hash(i, 3, 77) < 0.2 ? 2 : 0);
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {                        // halo dither di luar bola: kerapatan turun ke luar, dimodulasi noise yang bergeser SANGAT pelan
       const d = Math.hypot(x + 0.5 - CX, y + 0.5 - CY) - R; if (d < 0.5 || d > HR) continue;
-      const f = 1 - d / HR, dens = (Math.pow(f, 1.5) * (0.04 + 0.38 * PX.vnoise(x / 7 + t * 0.1, y / 7 - t * 0.07, 3)) + 0.4 * Math.pow(f, 4)) * (0.85 + 0.15 * pulse);   // + suku f^4: lebih padat tepat di dekat bola
-      if (dens > PX.bayer(x, y)) put(x, y, f > 0.8 ? 2 : f > 0.45 ? 1 : 0, 255 * (0.6 + 0.4 * PX.hash(x, y, 5)));   // lapisan awal biru terang, lalu langsung biru lebih gelap; opasitas 60–100%
+      const f = 1 - d / HR, dens = (Math.pow(f, 1.5) * (0.04 + 0.38 * PX.vnoise(x / 7 + 0.25 * Math.cos(t * TP), y / 7 + 0.25 * Math.sin(t * TP), 3)) + 0.4 * Math.pow(f, 4)) * (0.85 + 0.15 * pulse);   // + suku f^4: lebih padat tepat di dekat bola
+      if (dens > PX.bayer(x, y)) put(x, y, f > 0.8 ? (PX.hash(x, y, 6) < 0.5 ? 3 : 2) : f > 0.45 ? 1 : 0, 255 * (0.6 + 0.4 * PX.hash(x, y, 5)));   // lapisan awal biru terang, lalu langsung biru lebih gelap; opasitas 60–100%
     }
-    for (const q of motes) {                                                         // partikel kecil melayang keluar dengan lambat (2–4 px/s) sambil mengorbit pelan
-      q.d += q.sp * dt; q.a += q.w * dt; if (q.d > HR) { q.d = 1; q.a = Math.random() * 6.283; }
-      const rr = R + q.d, f = 1 - q.d / HR; put(CX + Math.cos(q.a) * rr, CY + Math.sin(q.a) * rr, f > 0.8 ? 2 : f > 0.45 ? 1 : 0, 200);
+    for (let i = 0; i < 16; i++) {                                                   // partikel kecil melayang keluar dengan lambat; posisi = fungsi waktu (n siklus per LOOP), arah acak tiap siklus
+      const n = 1 + (i & 1), Li = LOOP / n, ph = t / Li + PX.hash(i, 0, 60), u = ph - Math.floor(ph), cyc = ((Math.floor(ph) % n) + n) % n;
+      const d = 1 + u * (HR - 1), a = PX.hash(i, cyc, 61) * 6.283 + (PX.hash(i, 1, 62) - 0.5) * 0.25 * u * Li, rr = R + d, f = 1 - d / HR;
+      put(CX + Math.cos(a) * rr, CY + Math.sin(a) * rr, f > 0.8 ? 3 : f > 0.45 ? 1 : 0, 200);
     }
-    for (let i = rings.length - 1; i >= 0; i--) {                                    // cincin kejut dari bola
-      const q = rings[i]; q.t += dt; const u = q.t / 0.7; if (u >= 1) { rings.splice(i, 1); continue; }
+    for (let m = em - 1; m <= em; m++) {                                             // cincin kejut dari bola (umur 0.7 s sejak ujung ayunan)
+      const age = t - evT(m), u = age / 0.7; if (u < 0 || u >= 1) continue;
       const r = R + 2 + u * 44, n = Math.round(r * 5);
-      for (let k = 0; k < n; k++) { const g = (k / n) * 6.283; if (PX.hash(k, Math.floor(q.t * 30), 9) < 0.7 - u * 0.5) put(CX + Math.cos(g) * r, CY + Math.sin(g) * r, u < 0.3 ? 3 : u < 0.6 ? 2 : 1); }
+      for (let k = 0; k < n; k++) { const g = (k / n) * 6.283; if (PX.hash(k, Math.floor(age * 30), 9) < 0.7 - u * 0.5) put(CX + Math.cos(g) * r, CY + Math.sin(g) * r, u < 0.3 ? 3 : u < 0.6 ? 2 : 1); }
     }
-    if (thPrev === null) thPrev = th;                                                // interpolasi: sudut frame lalu -> sekarang dibagi NSUB sub-langkah; sub-langkah lama lebih redup (jejak halus, tanpa loncatan)
-    const SC = [], SS = [], SW_ = []; for (let s = 1; s <= NSUB; s++) { const a = thPrev + ((th - thPrev) * s) / NSUB; SC.push(Math.cos(a)); SS.push(Math.sin(a)); SW_.push(0.5 + (0.5 * s) / NSUB); }
+    const SC = [], SS = [], SW_ = []; for (let s = 1; s <= NSUB; s++) { const a = thAt(t - ((NSUB - s) / NSUB) / 60); SC.push(Math.cos(a)); SS.push(Math.sin(a)); SW_.push(0.5 + (0.5 * s) / NSUB); }   // jejak: sudut ayunan beberapa sub-langkah (≤1/60 s) ke belakang, lama = lebih redup
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {                        // sinar
       const dx = x + 0.5 - CX, dy = y + 0.5 - CY; let I = 0;
       for (let s = 0; s < NSUB; s++) {
         const u = Math.abs(dx * SC[s] + dy * SS[s]); if (u < R * 0.8 || u > Lb) continue;
-        const v = -dx * SS[s] + dy * SC[s], w = 1.5 + u * 0.1, prof = Math.max(0, 1 - Math.abs(v) / w), Is = (1 - u / Lb) * Math.pow(prof, 0.8) * (0.85 + 0.15 * Math.sin(u * 0.6 - t * 30)) * SW_[s];   // denyut kecil mengalir sepanjang sinar
+        const v = -dx * SS[s] + dy * SC[s], w = 1.5 + u * 0.1, prof = Math.max(0, 1 - Math.abs(v) / w), Is = (1 - u / Lb) * Math.pow(prof, 0.8) * (0.85 + 0.15 * Math.sin(u * 0.6 - t * 29 * TP)) * SW_[s];   // denyut kecil mengalir sepanjang sinar
         if (Is > I) I = Is;
       }
       if (I > PX.bayer(x, y) * 0.9) put(x, y, Math.min(5, Math.floor(I * 6)));
     }
     const front = [], PXX = -sa, PYY = ca;                                           // medan dipol 3D: tiap garis punya azimut φ mengelilingi sumbu; titik belakang digambar sebelum bola (tertutup), titik depan sesudahnya
     [20, 29, 40].forEach((s0, si) => {                                               // r = s·cos²λ; posisi = al·sumbu + pe·(cosφ·p + sinφ·q); z>0 = menghadap kamera
-      const s = s0 * (1 + 0.05 * Math.sin(t * 6 + si)), dir = si % 2 ? -1 : 1, NA = 5;
+      const s = s0 * (1 + 0.05 * Math.sin(t * 6 * TP + si)), dir = si % 2 ? -1 : 1, NA = 5;
       for (let a = 0; a < NA; a++) {
-        const phi = (a / NA) * 6.2832 + si * 0.6 + t * 0.9 * dir, cp = Math.cos(phi), sp = Math.sin(phi);   // azimut berputar pelan: garis tampak memutari bola
+        const phi = (a / NA) * 6.2832 + si * 0.6 + t * TP * dir, cp = Math.cos(phi), sp = Math.sin(phi);   // azimut berputar pelan: garis tampak memutari bola
         for (let k = -90; k <= 90; k += 0.5) {                                       // langkah 0.5° agar garis menyambung
           const lam = (k * Math.PI) / 180, r = s * Math.cos(lam) ** 2; if (r < R + 0.6) continue;
-          const al = r * Math.sin(lam), pe = r * Math.cos(lam), m = (((k + 90 + dir * t * 70) % 40) + 40) % 40;   // m: posisi dalam siklus dash (40° per siklus)
+          const al = r * Math.sin(lam), pe = r * Math.cos(lam), m = (((k + 90 + dir * t * (440 / LOOP)) % 40) + 40) % 40;   // m: posisi dalam siklus dash (40° per siklus)
           const x = CX + al * ca * CT + pe * (cp * PXX - sp * ST * ca), y = CY + al * sa * CT + pe * (cp * PYY - sp * ST * sa), z = al * ST + pe * sp * CT;
           const head = m < 4 ? 4 : m < 14 ? 3 : m < 26 ? 2 : -1;                      // kepala terang -> ekor -> celah pendek antar dash
           if (z > 0) { if (head >= 0) front.push([x, y, head]); if (m < 0.5) lit.glow(x, y, 4, V[3], 0.45); }   // inti (kepala) dash depan diberi glow
@@ -1258,16 +1322,18 @@ PX.demos.pulsar = (host) => {
       put(X, Y, ci);
     }
     for (const f of front) put(f[0], f[1], f[2]);                                    // garis medan sisi depan menimpa bola
-    thPrev = th;
-    for (let i = sparks.length - 1; i >= 0; i--) {                                   // percikan dari ujung sinar
-      const s = sparks[i]; s.life -= dt; if (s.life <= 0) { sparks.splice(i, 1); continue; }
-      s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 1 - 1.5 * dt; s.vy *= 1 - 1.5 * dt; put(s.x, s.y, s.life > s.m * 0.6 ? 5 : s.life > s.m * 0.3 ? 3 : 2);
+    for (let m = em - 2; m <= em; m++) for (const sg of [-1, 1]) for (let i = 0; i < 9; i++) {   // percikan dari ujung sinar: lintasan tertutup (redaman eksponensial), acak dari hash(kejadian mod 16) -> periodik
+      const age = t - evT(m), sd = ((m % 16) + 16) % 16 * 2 + (sg < 0 ? 0 : 1), life = 0.35 + PX.hash(i, sd, 73) * 0.5, left = life - age; if (age < 0 || left <= 0) continue;
+      const thm = BASE + SWING * evSign(m), g = thm + (sg < 0 ? Math.PI : 0) + (PX.hash(i, sd, 71) - 0.5) * 0.5, v = 20 + PX.hash(i, sd, 72) * 55, dd = (1 - Math.exp(-1.5 * age)) / 1.5;
+      put(CX + Math.cos(thm) * sg * R + Math.cos(g) * v * dd, CY + Math.sin(thm) * sg * R + Math.sin(g) * v * dd, left > 0.48 ? 5 : left > 0.24 ? 3 : 2);
     }
     lit.glow(CX, CY, R + 5, V[4], 0.07);                                              // glow putih di sekitar bola
     lit.glow(CX, CY, 34 + 4 * pulse, V[1], 0.22 + 0.08 * pulse);   // cahaya: halo bintang + titik terang sepanjang sinar (lebih terang saat menyapu cepat)
     for (const sg of [-1, 1]) { lit.glow(CX + ca * sg * Lb * 0.35, CY + sa * sg * Lb * 0.35, 16, V[3], 0.14 + 0.16 * speed); lit.glow(CX + ca * sg * Lb * 0.75, CY + sa * sg * Lb * 0.75, 10, V[2], 0.1 + 0.12 * speed); }
     c.putImageData(img, 0, 0); lit.flush(c);
-  });
+  };
+  PX.loop(host, (dt, t) => draw(t));
+  PX.gifButton(host, cv, draw, { loop: LOOP, fps: 25, scale: 4, name: 'pulsar' });   // unduh GIF: 6 detik @25 fps, frame ke-150 = frame 0 (loop mulus)
 };
 
 /* 46-demo-char.js */
