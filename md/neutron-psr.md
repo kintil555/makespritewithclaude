@@ -9,7 +9,7 @@ Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/neu
 - Tepi yang gelap dinaikkan satu tingkat agar siluet terbaca di latar gelap.
 - **Jejak**: 18 disc di belakang, mengecil dan alpha `(1−u)^1.4`; 40% pertama warna terang.
 - 3 percikan piksel acak mengorbit bola tiap frame.
-- Mengenai target → ledakan dengan palet neutron (lihat [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md)).
+- Mengenai target → ledakan neutron: bintang sinar yang tumbuh, berputar, bergetar, dan berdenyut terang ke ujung, plus cincin kejut, riak, cahaya, dan getaran (lihat [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md)). Bola juga memancarkan cahaya kecil.
 
 > **Demo interaktif "neutron"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
 
@@ -49,21 +49,21 @@ PX.drawOrb = (b, x, y, ang, R, ramp) => {
   for (let i = 0; i < 3; i++) { const g = Math.random() * 6.28, d = R + 1 + Math.random() * 2.5; b.px(x + Math.cos(g) * d, y + Math.sin(g) * d, Math.random() < 0.5 ? ramp[4] : ramp[2]); }
 };
 PX.demos.neutron = (host) => {
-  const W = 160, H = 90, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), buf = new PX.Buf(W, H), p = PX.pointer(cv);
+  const W = 160, H = 90, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), buf = new PX.Buf(W, H), lit = new PX.Light(W, H), p = PX.pointer(cv);
   cv.style.background = '#12121c';
   const ramp = PX.PALS.neutron.c.map(PX.hex), orbs = [], blasts = []; let idle = 0.3;
   const shoot = (tx, ty) => { const a = Math.atan2(ty - 66, tx - 14); orbs.push({ x: 14, y: 66, a, tx, ty, t: 0 }); };
   PX.loop(host, (dt, t) => {
     for (const k of p.clicks.splice(0)) shoot(k.x, k.y);
     idle -= dt; if (idle <= 0) { idle = 2; if (!p.in) shoot(100 + Math.random() * 50, 20 + Math.random() * 50); }
-    buf.clear();
+    buf.clear(); lit.clear(); let shake = 0;
     for (let i = orbs.length - 1; i >= 0; i--) {
       const o = orbs[i], v = 130 * dt; o.x += Math.cos(o.a) * v; o.y += Math.sin(o.a) * v;
       if ((o.tx - o.x) * Math.cos(o.a) + (o.ty - o.y) * Math.sin(o.a) <= 0) { blasts.push(new PX.Blast(o.tx, o.ty, 15, PX.PALS.neutron)); orbs.splice(i, 1); continue; }
-      PX.drawOrb(buf, o.x, o.y, o.a, 3.3 * (1 + Math.sin(t * 40) * 0.06), ramp);
+      PX.drawOrb(buf, o.x, o.y, o.a, 3.3 * (1 + Math.sin(t * 40) * 0.06), ramp); lit.glow(o.x, o.y, 11, ramp[2], 0.35);
     }
-    for (let i = blasts.length - 1; i >= 0; i--) { blasts[i].step(dt); blasts[i].draw(buf); if (blasts[i].done) blasts.splice(i, 1); }
-    buf.flush(c); c.fillStyle = '#5c5c78'; c.fillRect(8, 63, 8, 6);
+    for (let i = blasts.length - 1; i >= 0; i--) { blasts[i].step(dt); blasts[i].draw(buf); blasts[i].light(lit); shake = Math.max(shake, blasts[i].shake); if (blasts[i].done) blasts.splice(i, 1); }
+    buf.flush(c); lit.flush(c); cv.style.transform = shake > 0.02 ? `translate(${((Math.random() - 0.5) * 5 * shake).toFixed(1)}px,${((Math.random() - 0.5) * 5 * shake).toFixed(1)}px)` : ''; c.fillStyle = '#5c5c78'; c.fillRect(8, 63, 8, 6);
   });
 };
 ```
