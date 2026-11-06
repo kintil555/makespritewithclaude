@@ -93,3 +93,12 @@ body{background:#101010 linear-gradient(45deg,#151515 25%,transparent 25%,transp
 .side .sb.on{filter:brightness(1.7);color:var(--acc)}
 .layout>main{min-width:0;max-width:none}
 @media (max-width:820px){.layout{grid-template-columns:1fr}.side{position:static;max-height:34vh;border-right:0;border-bottom:var(--us) solid #0b0b0b}.side .sh{margin:10px 0 4px}.side .sb{display:inline-block;margin:0 4px 4px 0}}
+
+/* ===== Lebar penuh: bingkai selebar layar, teks tetap nyaman dibaca, demo/kode/tabel selebar kolom ===== */
+.shell{max-width:1920px}
+.layout>main{padding-left:20px;padding-right:20px}
+article{max-width:none}
+article>:is(h1,h2,h3,p,ul,ol,blockquote,.lead,.meta,.crumb){max-width:880px}
+.demo figure.fluid{flex:1 1 100%;min-width:0}
+.demo figure.fluid canvas{width:100%}
+@media (max-width:820px){.layout>main{padding-left:8px;padding-right:8px}}

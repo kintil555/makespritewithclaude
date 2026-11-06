@@ -99,7 +99,9 @@ PX.canvas = (host, w, h, cssW, smooth = false, caption = '') => {
   const fig = document.createElement('figure');
   const cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
-  cv.style.width = cssW + 'px'; cv.style.maxWidth = '100%'; cv.style.height = 'auto';
+  cv.style.maxWidth = '100%'; cv.style.height = 'auto';
+  if (cssW >= 576) { fig.className = 'fluid'; cv.style.width = '100%'; }   // kanvas utama: selebar kontainer (aspek tetap, piksel tetap tajam); kanvas kecil/berpasangan tetap ukuran tetap
+  else cv.style.width = cssW + 'px';
   cv.style.imageRendering = smooth ? 'auto' : 'pixelated';
   fig.appendChild(cv);
   if (caption) { const f = document.createElement('figcaption'); f.textContent = caption; fig.appendChild(f); }
