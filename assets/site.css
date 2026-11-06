@@ -71,3 +71,10 @@ input[type=range]:hover::-webkit-slider-thumb{filter:brightness(1.3)}
 ::-webkit-scrollbar-corner{background:#1c1c1c}
 th{background:#333;color:#fff}th,td{border-color:#555}
 @media (max-width:600px){:root{--u:2px;--uh:4px}body{font-size:18px}}
+
+/* ===== Bingkai seluruh situs ===== */
+body{background:#101010 linear-gradient(45deg,#151515 25%,transparent 25%,transparent 75%,#151515 75%) 0 0/16px 16px;padding:16px 12px 32px}
+.shell{max-width:1120px;margin:0 auto;border:0;border-style:solid;border-width:calc(var(--uh)*6) calc(var(--uh)*3) calc(var(--uh)*3);border-image:url(ui/gui-header.png) 6 3 3 3 fill/calc(var(--uh)*6) calc(var(--uh)*3) calc(var(--uh)*3) stretch;image-rendering:pixelated;padding:0 4px;margin-top:0}
+.shell .top{padding:6px 12px}
+.shell footer{border-top:var(--u) solid #1a1a1a}
+@media (max-width:600px){body{padding:8px 4px 16px}.shell{padding:0}}

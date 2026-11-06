@@ -56,10 +56,12 @@ ${md ? `<link rel="alternate" type="text/markdown" href="${SITE}/${md}" title="M
 <script type="application/ld+json">${JSON.stringify(jsonld)}</script>
 </head>
 <body>
+<div class="shell">
 <header class="top"><a class="brand" href="${r}index.html"><span class="logo" aria-hidden="true"></span>${NAME}</a>
 <nav aria-label="Navigasi"><a href="${r}index.html#rendering">Rendering</a><a href="${r}index.html#efek">Efek</a><a href="${r}index.html#karakter">Karakter</a><a href="${r}index.html#ai">Untuk AI</a></nav></header>
 ${body}
 <footer><p>Akses mesin: <a href="${r}llms.txt">llms.txt</a> · <a href="${r}llms-full.txt">llms-full.txt</a> · <a href="${r}index.json">index.json</a> · <a href="${r}sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+</div>
 <script src="${r}assets/px.js"></script><script src="${r}assets/site.js"></script>
 </body></html>`;
 };
