@@ -1,5 +1,5 @@
 // Dua jenis ledakan. PX.Rocket (roket/launcher): kilat -> 2 cincin -> puff bola api -> asap besar -> percikan berparabola.
-// PX.Blast (neutron): kilat -> gumpalan 5 disc -> sinar -> gelombang kejut tak beraturan -> partikel -> asap. Keduanya memberi cahaya lewat PX.Light.
+// PX.Blast (neutron): kilat -> gumpalan bertekstur prosedural -> sinar -> gelombang kejut tak beraturan -> partikel -> asap. Keduanya memberi cahaya lewat PX.Light.
 PX.PALS = {
   api:     { c: ['#8a1f17', '#f2561d', '#ff8a2a', '#ffe26b', '#ffffff'], smoke: ['#7e3030', '#4a2a2a', '#2e2024', '#1a161c'] },
   neutron: { c: ['#1b2fb0', '#3a5cff', '#8fb4ff', '#c9d8ff', '#ffffff'], smoke: ['#5a6aa8', '#3a4278', '#262a4c', '#14162a'] },
@@ -15,7 +15,7 @@ PX.Blast = class {
       ...Array.from({ length: 22 }, () => ({ a: r() * 6.283, len: rg(0.4, 1.3), big: false, t0: dl(), dur: rg(0.35, 0.55), sr: rg(0.85, 1.15) })),
     ];
     this.spin = (r() < 0.5 ? -1 : 1) * rg(0.25, 0.5); this.tips = [];
-    this.lobes = Array.from({ length: 10 }, () => ({ a: r() * 6.283, d: r() * 0.75, r: 0.2 + r() * 0.28, t0: r() * 0.22, tl: 0.45 + r() * 0.4 }));
+    this.lobes = Array.from({ length: 10 }, () => ({ v: (r() * 4) | 0, ox: (r() * 32) | 0, oy: (r() * 32) | 0, a: r() * 6.283, d: r() * 0.75, r: 0.2 + r() * 0.28, t0: r() * 0.22, tl: 0.45 + r() * 0.4 }));
     this.ph = [r() * 6.283, r() * 6.283, r() * 6.283];
     this.parts = Array.from({ length: 70 }, () => { const g = r() * 6.283, v = (0.4 + Math.sqrt(r()) * 2.4) * R * 3; return { x: this.x, y: this.y, vx: Math.cos(g) * v, vy: Math.sin(g) * v - R, life: 0.25 + r() * 0.75, ci: (r() * 4) | 0 }; });
     this.smoke = Array.from({ length: 7 }, () => ({ x: this.x + (r() - 0.5) * R, y: this.y + (r() - 0.5) * R, vx: (r() - 0.5) * 8, vy: -4 - r() * 9, life: 1 + r() * 0.6, r0: R * 0.18, r1: R * (0.4 + r() * 0.4) }));
@@ -42,11 +42,17 @@ PX.Blast = class {
         const k = 1 - u / 0.22, len = R * (0.8 + 2.2 * Math.sqrt(k));
         for (let d = 1; d < len; d++) { const al = k * (1 - d / len) * (0.7 + 0.3 * rnd()); b.px(cx + d, cy, c[4], al); b.px(cx - d, cy, c[4], al); b.px(cx, cy + d, c[4], al); b.px(cx, cy - d, c[4], al); }
       }
-      for (const l of this.lobes) {                                                       // gumpalan bola api: 5 disc konsentris
+      const BT = PX.blastTex || (PX.blastTex = [0, 1, 2, 3].map((v) => { const t = new Float32Array(1024); for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) t[y * 32 + x] = PX.fbm(x / 8, y / 8, 11 + v * 5, 4, 4); return t; }));   // 4 varian tekstur fbm 32x32 yang bisa di-tile, dibake sekali
+      for (const l of this.lobes) {                                                       // gumpalan: baca tekstur bake (digeser = bergolak) -> siluet tak bulat + emboss kiri-atas + ramp 5 tingkat + dither hanya di batas klaster; memudar dengan menurunkan k, bukan alpha
         const lu = (u - l.t0) / l.tl; if (lu < 0 || lu > 1) continue;
-        const le = 1 - (1 - lu) * (1 - lu), al = Math.pow(1 - lu, 1.1), sz = l.r * R * (0.4 + 1.1 * le),
-          lx = cx + Math.cos(l.a) * l.d * R * 1.5 * le, ly = cy + Math.sin(l.a) * l.d * R * 1.5 * le;
-        [[0, 1, 0.55], [1, 0.86, 0.7], [2, 0.64, 0.85], [3, 0.42, 0.95], [4, 0.22 * (1 - lu * 0.6), 1]].forEach(([ci, k, A]) => b.disc(lx, ly, sz * k, c[ci], al * A));
+        const le = 1 - (1 - lu) * (1 - lu), al = Math.min(1, lu * 10) * Math.pow(1 - lu, 0.9), sz = l.r * R * (0.4 + 1.1 * le),
+          lx = Math.round(cx + Math.cos(l.a) * l.d * R * 1.5 * le), ly = Math.round(cy + Math.sin(l.a) * l.d * R * 1.5 * le), M = Math.ceil(sz * 1.4), tx = BT[l.v], sc = 10 / sz, o = Math.floor(T * 5);
+        for (let j = -M; j <= M; j++) for (let i = -M; i <= M; i++) {
+          const d = Math.hypot(i, j); if (d > sz * 1.4) continue;
+          const X = Math.floor(i * sc) + l.ox + o, Y = Math.floor(j * sc) + l.oy - (o >> 1), n = tx[(Y & 31) * 32 + (X & 31)], rho = d / sz + (n - 0.5) * 0.7; if (rho > 1) continue;
+          const k = (1 - rho) * 0.95 + (n - 0.5) * 0.3 + (tx[((Y - 1) & 31) * 32 + ((X - 1) & 31)] - tx[((Y + 1) & 31) * 32 + ((X + 1) & 31)]) * 0.9 - lu * 0.25 - (1 - al) * 0.5;   // radial + noise + emboss; mendingin lalu menyusut mengikuti noise
+          if (k < 0.04) continue; b.px(lx + i, ly + j, c[PX.tone(k, lx + i, ly + j, 5, 0.25)]);
+        }
       }
       const sp = (uu) => this.spin * (1 - Math.pow(1 - Math.min(1, uu * 1.15), 3)), ez = (q) => 1 - Math.pow(1 - q, 3);   // putaran kecil (ease-out kubik); ez = lontaran ease-out
       for (const r of this.rays) {                                                        // sinar: kepala (inti) dilontarkan keluar; ekor = jejak posisi kepala beberapa saat lalu -> mengikuti inti, memendek lalu hilang saat kepala melambat

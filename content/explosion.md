@@ -2,7 +2,7 @@
 title: Ledakan prosedural — roket dan neutron
 category: efek
 order: 60
-summary: Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan 5 disc, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.
+summary: Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan bertekstur, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.
 ---
 Satu ledakan = beberapa lapis yang hidup dengan jam masing-masing. Pilih **jenis** di demo: bentuknya sengaja berbeda supaya pemain langsung tahu senjata apa yang meledak.
 
@@ -26,7 +26,12 @@ Cherenkov biru, lebih "bersih" dan geometris:
 
 1. **Haze**: disc radius `R(1+0.9e)` alpha 0.14 warna paling gelap.
 2. **Kilat**: 14% awal umur, disc putih membesar sambil memudar.
-3. **Gumpalan**: 10 lobus acak; tiap lobus = **5 disc konsentris** gelap → putih (radius `1, .86, .64, .42, .22`; alpha `.55, .7, .85, .95, 1`).
+3. **Gumpalan**: 10 lobus acak, ditekstur prosedural (lihat [texturing](pixel-texturing.html)), bukan disc beralpha yang tampak buram:
+   - **bake sekali**: 4 varian fbm 32×32 yang bisa di-tile (`PX.blastTex`); tiap lobus memilih satu varian + offset acak, lalu **digeser** `floor(t·5)` texel agar bergolak, tanpa menghitung noise per frame;
+   - **siluet tak bulat**: `rho = jarak/sz + (n − 0.5)·0.7`, piksel dibuang jika `rho > 1`;
+   - **nilai** `k = (1 − rho)·0.95 + (n − 0.5)·0.3 + emboss·0.9 − umur·0.25`; emboss = tinggi texel kiri-atas − kanan-bawah (cahaya satu arah);
+   - `PX.tone(k, x, y, 5, 0.25)` ke ramp neutron: klaster solid, dither hanya di batas tingkat;
+   - **memudar** dengan menurunkan `k` (`− (1 − alpha)·0.5`) lalu membuang `k < 0.04`, jadi bentuk menyusut mengikuti noise, bukan pola Bayer atau alpha.
 4. **Sinar (teranimasi)**: 10 duri utama merata + jitter (panjang `1.4–2.5R`) dan 22 sinar pendek acak, dari `0.3R`. Tiap sinar adalah ruas `[ekor, kepala]` yang **dilontarkan keluar lalu memudar**, sekali jalan:
    - **kepala (inti)** melesat dengan ease-out kubik, `head = Lmaks·ez(ru)`, `ez(q) = 1 − (1 − q)³`: cepat di awal, melambat di ujung;
    - **ekor = jejak inti**: ruas digambar dengan men-sampel waktu `ru − lag … ru` (`lag` 0.25 duri utama, 0.2 sinar pendek), bukan jarak tetap. Ekor melewati titik-titik yang baru dilalui inti, jadi memanjang saat inti cepat lalu menyusut dan **hilang tepat di inti** saat inti melambat;

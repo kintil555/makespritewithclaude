@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Ledakan prosedural — roket dan neutron — Make Sprite With Claude</title>
-<meta name="description" content="Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan 5 disc, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.">
+<meta name="description" content="Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan bertekstur, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.">
 <link rel="canonical" href="https://makespritewithclaude.pages.dev/articles/explosion.html">
 <link rel="stylesheet" href="../assets/site.css">
 <link rel="alternate" type="text/plain" href="https://makespritewithclaude.pages.dev/llms.txt" title="llms.txt">
 <link rel="alternate" type="text/markdown" href="https://makespritewithclaude.pages.dev/md/explosion.md" title="Markdown">
-<meta property="og:title" content="Ledakan prosedural — roket dan neutron — Make Sprite With Claude"><meta property="og:description" content="Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan 5 disc, sinar, gelombang kejut) — plus cahaya glow dan getaran layar."><meta property="og:type" content="article">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Ledakan prosedural — roket dan neutron","description":"Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan 5 disc, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.","inLanguage":"id","url":"https://makespritewithclaude.pages.dev/articles/explosion.html","articleSection":"Efek (VFX)","author":{"@type":"Person","name":"kintil555"}}</script>
+<meta property="og:title" content="Ledakan prosedural — roket dan neutron — Make Sprite With Claude"><meta property="og:description" content="Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan bertekstur, sinar, gelombang kejut) — plus cahaya glow dan getaran layar."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Ledakan prosedural — roket dan neutron","description":"Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan bertekstur, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.","inLanguage":"id","url":"https://makespritewithclaude.pages.dev/articles/explosion.html","articleSection":"Efek (VFX)","author":{"@type":"Person","name":"kintil555"}}</script>
 </head>
 <body>
 <div class="shell">
@@ -18,7 +18,7 @@
 <nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
 <main><article>
 <p class="crumb"><a href="../index.html#efek">Efek (VFX)</a></p>
-<h1>Ledakan prosedural — roket dan neutron</h1><p class="lead">Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan 5 disc, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.</p>
+<h1>Ledakan prosedural — roket dan neutron</h1><p class="lead">Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan bertekstur, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.</p>
 <p class="meta">Versi mentah untuk AI: <a href="../md/explosion.md">md/explosion.md</a></p>
 <p>Satu ledakan = beberapa lapis yang hidup dengan jam masing-masing. Pilih <strong>jenis</strong> di demo: bentuknya sengaja berbeda supaya pemain langsung tahu senjata apa yang meledak.</p>
 <div class="demo" data-demo="blast"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
@@ -39,7 +39,14 @@
 <ol>
 <li><strong>Haze</strong>: disc radius <code>R(1+0.9e)</code> alpha 0.14 warna paling gelap.</li>
 <li><strong>Kilat</strong>: 14% awal umur, disc putih membesar sambil memudar.</li>
-<li><strong>Gumpalan</strong>: 10 lobus acak; tiap lobus = <strong>5 disc konsentris</strong> gelap → putih (radius <code>1, .86, .64, .42, .22</code>; alpha <code>.55, .7, .85, .95, 1</code>).</li>
+<li><strong>Gumpalan</strong>: 10 lobus acak, ditekstur prosedural (lihat <a href="pixel-texturing.html">texturing</a>), bukan disc beralpha yang tampak buram:<ul>
+<li><strong>bake sekali</strong>: 4 varian fbm 32×32 yang bisa di-tile (<code>PX.blastTex</code>); tiap lobus memilih satu varian + offset acak, lalu <strong>digeser</strong> <code>floor(t·5)</code> texel agar bergolak, tanpa menghitung noise per frame;</li>
+<li><strong>siluet tak bulat</strong>: <code>rho = jarak/sz + (n − 0.5)·0.7</code>, piksel dibuang jika <code>rho &gt; 1</code>;</li>
+<li><strong>nilai</strong> <code>k = (1 − rho)·0.95 + (n − 0.5)·0.3 + emboss·0.9 − umur·0.25</code>; emboss = tinggi texel kiri-atas − kanan-bawah (cahaya satu arah);</li>
+<li><code>PX.tone(k, x, y, 5, 0.25)</code> ke ramp neutron: klaster solid, dither hanya di batas tingkat;</li>
+<li><strong>memudar</strong> dengan menurunkan <code>k</code> (<code>− (1 − alpha)·0.5</code>) lalu membuang <code>k &lt; 0.04</code>, jadi bentuk menyusut mengikuti noise, bukan pola Bayer atau alpha.</li>
+</ul>
+</li>
 <li><strong>Sinar (teranimasi)</strong>: 10 duri utama merata + jitter (panjang <code>1.4–2.5R</code>) dan 22 sinar pendek acak, dari <code>0.3R</code>. Tiap sinar adalah ruas <code>[ekor, kepala]</code> yang <strong>dilontarkan keluar lalu memudar</strong>, sekali jalan:<ul>
 <li><strong>kepala (inti)</strong> melesat dengan ease-out kubik, <code>head = Lmaks·ez(ru)</code>, <code>ez(q) = 1 − (1 − q)³</code>: cepat di awal, melambat di ujung;</li>
 <li><strong>ekor = jejak inti</strong>: ruas digambar dengan men-sampel waktu <code>ru − lag … ru</code> (<code>lag</code> 0.25 duri utama, 0.2 sinar pendek), bukan jarak tetap. Ekor melewati titik-titik yang baru dilalui inti, jadi memanjang saat inti cepat lalu menyusut dan <strong>hilang tepat di inti</strong> saat inti melambat;</li>
@@ -95,7 +102,7 @@
 <p><code>PX.PALS</code> berisi ramp 5 warna + 4 warna asap; <code>PX.FB</code> ramp api roket. Ledakan jenis baru cukup menukar ramp dan memilih lapisan yang dipakai.</p>
 <h2>Kode</h2>
 <details class="code" open><summary>Kode: <code>src/code/41-demo-blast.js</code></summary><pre><code class="language-js">// Dua jenis ledakan. PX.Rocket (roket/launcher): kilat -&gt; 2 cincin -&gt; puff bola api -&gt; asap besar -&gt; percikan berparabola.
-// PX.Blast (neutron): kilat -&gt; gumpalan 5 disc -&gt; sinar -&gt; gelombang kejut tak beraturan -&gt; partikel -&gt; asap. Keduanya memberi cahaya lewat PX.Light.
+// PX.Blast (neutron): kilat -&gt; gumpalan bertekstur prosedural -&gt; sinar -&gt; gelombang kejut tak beraturan -&gt; partikel -&gt; asap. Keduanya memberi cahaya lewat PX.Light.
 PX.PALS = {
   api:     { c: ['#8a1f17', '#f2561d', '#ff8a2a', '#ffe26b', '#ffffff'], smoke: ['#7e3030', '#4a2a2a', '#2e2024', '#1a161c'] },
   neutron: { c: ['#1b2fb0', '#3a5cff', '#8fb4ff', '#c9d8ff', '#ffffff'], smoke: ['#5a6aa8', '#3a4278', '#262a4c', '#14162a'] },
@@ -111,7 +118,7 @@ PX.Blast = class {
       ...Array.from({ length: 22 }, () =&gt; ({ a: r() * 6.283, len: rg(0.4, 1.3), big: false, t0: dl(), dur: rg(0.35, 0.55), sr: rg(0.85, 1.15) })),
     ];
     this.spin = (r() &lt; 0.5 ? -1 : 1) * rg(0.25, 0.5); this.tips = [];
-    this.lobes = Array.from({ length: 10 }, () =&gt; ({ a: r() * 6.283, d: r() * 0.75, r: 0.2 + r() * 0.28, t0: r() * 0.22, tl: 0.45 + r() * 0.4 }));
+    this.lobes = Array.from({ length: 10 }, () =&gt; ({ v: (r() * 4) | 0, ox: (r() * 32) | 0, oy: (r() * 32) | 0, a: r() * 6.283, d: r() * 0.75, r: 0.2 + r() * 0.28, t0: r() * 0.22, tl: 0.45 + r() * 0.4 }));
     this.ph = [r() * 6.283, r() * 6.283, r() * 6.283];
     this.parts = Array.from({ length: 70 }, () =&gt; { const g = r() * 6.283, v = (0.4 + Math.sqrt(r()) * 2.4) * R * 3; return { x: this.x, y: this.y, vx: Math.cos(g) * v, vy: Math.sin(g) * v - R, life: 0.25 + r() * 0.75, ci: (r() * 4) | 0 }; });
     this.smoke = Array.from({ length: 7 }, () =&gt; ({ x: this.x + (r() - 0.5) * R, y: this.y + (r() - 0.5) * R, vx: (r() - 0.5) * 8, vy: -4 - r() * 9, life: 1 + r() * 0.6, r0: R * 0.18, r1: R * (0.4 + r() * 0.4) }));
@@ -138,11 +145,17 @@ PX.Blast = class {
         const k = 1 - u / 0.22, len = R * (0.8 + 2.2 * Math.sqrt(k));
         for (let d = 1; d &lt; len; d++) { const al = k * (1 - d / len) * (0.7 + 0.3 * rnd()); b.px(cx + d, cy, c[4], al); b.px(cx - d, cy, c[4], al); b.px(cx, cy + d, c[4], al); b.px(cx, cy - d, c[4], al); }
       }
-      for (const l of this.lobes) {                                                       // gumpalan bola api: 5 disc konsentris
+      const BT = PX.blastTex || (PX.blastTex = [0, 1, 2, 3].map((v) =&gt; { const t = new Float32Array(1024); for (let y = 0; y &lt; 32; y++) for (let x = 0; x &lt; 32; x++) t[y * 32 + x] = PX.fbm(x / 8, y / 8, 11 + v * 5, 4, 4); return t; }));   // 4 varian tekstur fbm 32x32 yang bisa di-tile, dibake sekali
+      for (const l of this.lobes) {                                                       // gumpalan: baca tekstur bake (digeser = bergolak) -&gt; siluet tak bulat + emboss kiri-atas + ramp 5 tingkat + dither hanya di batas klaster; memudar dengan menurunkan k, bukan alpha
         const lu = (u - l.t0) / l.tl; if (lu &lt; 0 || lu &gt; 1) continue;
-        const le = 1 - (1 - lu) * (1 - lu), al = Math.pow(1 - lu, 1.1), sz = l.r * R * (0.4 + 1.1 * le),
-          lx = cx + Math.cos(l.a) * l.d * R * 1.5 * le, ly = cy + Math.sin(l.a) * l.d * R * 1.5 * le;
-        [[0, 1, 0.55], [1, 0.86, 0.7], [2, 0.64, 0.85], [3, 0.42, 0.95], [4, 0.22 * (1 - lu * 0.6), 1]].forEach(([ci, k, A]) =&gt; b.disc(lx, ly, sz * k, c[ci], al * A));
+        const le = 1 - (1 - lu) * (1 - lu), al = Math.min(1, lu * 10) * Math.pow(1 - lu, 0.9), sz = l.r * R * (0.4 + 1.1 * le),
+          lx = Math.round(cx + Math.cos(l.a) * l.d * R * 1.5 * le), ly = Math.round(cy + Math.sin(l.a) * l.d * R * 1.5 * le), M = Math.ceil(sz * 1.4), tx = BT[l.v], sc = 10 / sz, o = Math.floor(T * 5);
+        for (let j = -M; j &lt;= M; j++) for (let i = -M; i &lt;= M; i++) {
+          const d = Math.hypot(i, j); if (d &gt; sz * 1.4) continue;
+          const X = Math.floor(i * sc) + l.ox + o, Y = Math.floor(j * sc) + l.oy - (o &gt;&gt; 1), n = tx[(Y &amp; 31) * 32 + (X &amp; 31)], rho = d / sz + (n - 0.5) * 0.7; if (rho &gt; 1) continue;
+          const k = (1 - rho) * 0.95 + (n - 0.5) * 0.3 + (tx[((Y - 1) &amp; 31) * 32 + ((X - 1) &amp; 31)] - tx[((Y + 1) &amp; 31) * 32 + ((X + 1) &amp; 31)]) * 0.9 - lu * 0.25 - (1 - al) * 0.5;   // radial + noise + emboss; mendingin lalu menyusut mengikuti noise
+          if (k &lt; 0.04) continue; b.px(lx + i, ly + j, c[PX.tone(k, lx + i, ly + j, 5, 0.25)]);
+        }
       }
       const sp = (uu) =&gt; this.spin * (1 - Math.pow(1 - Math.min(1, uu * 1.15), 3)), ez = (q) =&gt; 1 - Math.pow(1 - q, 3);   // putaran kecil (ease-out kubik); ez = lontaran ease-out
       for (const r of this.rays) {                                                        // sinar: kepala (inti) dilontarkan keluar; ekor = jejak posisi kepala beberapa saat lalu -&gt; mengikuti inti, memendek lalu hilang saat kepala melambat
