@@ -27,7 +27,7 @@ Bintang neutron berputar dengan sumbu magnet miring:
 - **Garis medan dipol 3D**: `r = s·cos²λ`; tiap garis punya azimut `φ` mengelilingi sumbu. Posisi 3D = `r·sinλ·a + r·cosλ·(cosφ·p + sinφ·q)` (`a` sumbu miring ke kamera, `p`,`q` basis tegak lurus), diproyeksikan ortografis. `z>0` digambar **setelah** bola (menimpa), `z<0` digambar **sebelum** bola (tertutup) dan lebih gelap; titik dengan `r<R` dibuang. `φ` berputar pelan sehingga garis tampak memutari bola. Dash mengalir sepanjang garis (`(k + arah·t·70) mod 40`), kepala dash diberi `lit.glow`.
 - **Ayunan smooth**: `SNAP` kecil (mendekati sinus) + interpolasi sub-langkah: sudut frame lalu→sekarang dibagi 5, tiap sinar dirender di semua sub-sudut (yang lama lebih redup) dan diambil nilai maksimum → jejak halus tanpa loncatan.
 - **Efek**: halo cahaya berdenyut, cincin + percikan di tiap ujung ayunan, bintang latar berkedip.
-- **Bola berputar cepat**: peta tekstur lon/lat (64×32, di-bake sekali dengan `fbm` yang tile di sumbu lon). Tiap piksel dipetakan terbalik ke titik bola `(nx,ny,nz)`, sumbu putar dimiringkan, `lon = atan2(ax,nz) + t·ω`, `lat = asin(ay)`, lalu ambil texel. Cahaya tetap, tekstur berputar (ω = 10 rad/s). `k = 0.06 + 0.42·l + (tex−0.5)·0.85` → `PX.tone(k, x, y, 5, 0.9)`: dither Bayer lebar pada 5 warna (tanpa putih penuh) sehingga pola dither terlihat dan bola tidak biru-keputihan rata. **Halo luar**: tiap piksel di `R..R+17` menyala jika `(1−d/17)^1.5 · noise(x/7 + 0.1t, y/7 − 0.07t) > bayer(x,y)` — noise bergeser sangat pelan; ditambah ±46 partikel yang melayang keluar 1.5–4 px/s. **Pinggiran**: `rim = (r²−0.45)/0.55`, `k ×= 1 − 0.85·rim²` sehingga tepi menjadi biru gelap; `r²>0.8` dipaksa ke 2 warna tergelap; bintik putih = `hash(tx>>1, ty>>1) > 0.9` pada `r²>0.6`. Karena bintik di-hash dari koordinat **tekstur** (bukan layar), pinggiran gelap + putih ikut berputar bersama bola.
+- **Bola berputar cepat**: peta tekstur lon/lat (64×32, di-bake sekali dengan `fbm` yang tile di sumbu lon). Tiap piksel dipetakan terbalik ke titik bola `(nx,ny,nz)`, sumbu putar dimiringkan, `lon = atan2(ax,nz) + t·ω`, `lat = asin(ay)`, lalu ambil texel. Cahaya tetap, tekstur berputar (ω = 10 rad/s). `k = 0.06 + 0.42·l + (tex−0.5)·0.85` → `PX.tone(k, x, y, 5, 0.9)`: dither Bayer lebar pada 5 warna (tanpa putih penuh) sehingga pola dither terlihat dan bola tidak biru-keputihan rata. **Halo luar**: tipis dan jarang: tiap piksel di `R..R+8` menyala jika `(1−d/8)^1.5 · (0.04 + 0.38·noise(x/7 + 0.1t, y/7 − 0.07t)) > bayer(x,y)` — noise bergeser sangat pelan; ditambah 16 partikel yang melayang keluar 1–2.5 px/s. **Pinggiran**: `rim = (r²−0.45)/0.55`, `k ×= 1 − 0.85·rim²` sehingga tepi menjadi biru gelap; `r²>0.8` dipaksa ke 2 warna tergelap; bintik putih = `hash(tx>>1, ty>>1) > 0.9` pada `r²>0.6`. Karena bintik di-hash dari koordinat **tekstur** (bukan layar), pinggiran gelap + putih ikut berputar bersama bola.
 
 > **Demo interaktif "pulsar"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
 
@@ -119,7 +119,7 @@ PX.demos.neutron = (host) => {
 PX.demos.pulsar = (host) => {
   const W = 128, H = 72, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), img = c.createImageData(W, H), lit = new PX.Light(W, H);
   cv.style.background = '#0a0a16';
-  const V = ['#241a66', '#2f3cb4', '#4f7bff', '#8fcbff', '#dff2ff', '#ffffff'].map(PX.hex), CX = W / 2, CY = H / 2, R = 13, HR = 17;   // R: radius bola, HR: tebal halo dither di luar bola
+  const V = ['#241a66', '#2f3cb4', '#4f7bff', '#8fcbff', '#dff2ff', '#ffffff'].map(PX.hex), CX = W / 2, CY = H / 2, R = 13, HR = 8;   // R: radius bola, HR: tebal halo dither di luar bola
   const BASE = -0.72, SWING = Math.PI / 8, FREQ = 8.5, SNAP = 0.9;               // sumbu miring, amplitudo 22.5°, ayunan cepat (periode ≈ 0.74 s), SNAP kecil = gerak halus (mendekati sinus)
   const NORM = Math.tanh(SNAP), sparks = [], rings = [], NSUB = 5, TAU = 0.5, CT = Math.cos(TAU), ST = Math.sin(TAU); let prevCos = 1, thPrev = null;   // NSUB: sub-langkah interpolasi sudut per frame; TAU: sumbu miring ke arah kamera (untuk medan 3D)
   const SPIN = 10, AXT = 0.35, TW = 96, TH = 48, TEX = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
@@ -127,7 +127,7 @@ PX.demos.pulsar = (host) => {
     const f = PX.fbm(x / 12, y / 12, 21, TW / 12, 0, 4), hot = PX.fbm(x / 8, y / 8, 47, TW / 8, 0, 3);   // oktaf lebih banyak -> bercak lebih beragam
     TEX[y * TW + x] = PX.clamp((f - 0.5) * 2.6 + 0.5 - Math.max(0, hot - 0.62) * 1.6 + Math.max(0, 0.3 - hot) * 1.4, 0, 1);
   }
-  const motes = Array.from({ length: 46 }, () => ({ d: Math.random() * HR, a: Math.random() * 6.283, sp: 1.5 + Math.random() * 2.5, w: (Math.random() - 0.5) * 0.25 }));
+  const motes = Array.from({ length: 16 }, () => ({ d: Math.random() * HR, a: Math.random() * 6.283, sp: 1 + Math.random() * 1.5, w: (Math.random() - 0.5) * 0.25 }));
   const put = (x, y, ci) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4, k = V[ci]; img.data[i] = k[0]; img.data[i + 1] = k[1]; img.data[i + 2] = k[2]; img.data[i + 3] = 255; };
   PX.loop(host, (dt, t) => {
     img.data.fill(0); lit.clear();
@@ -145,7 +145,7 @@ PX.demos.pulsar = (host) => {
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {                        // halo dither di luar bola: kerapatan turun ke luar, dimodulasi noise yang bergeser SANGAT pelan
       const d = Math.hypot(x + 0.5 - CX, y + 0.5 - CY) - R; if (d < 0.5 || d > HR) continue;
-      const f = 1 - d / HR, dens = Math.pow(f, 1.5) * (0.1 + 0.65 * PX.vnoise(x / 7 + t * 0.1, y / 7 - t * 0.07, 3)) * (0.85 + 0.15 * pulse);
+      const f = 1 - d / HR, dens = Math.pow(f, 1.5) * (0.04 + 0.38 * PX.vnoise(x / 7 + t * 0.1, y / 7 - t * 0.07, 3)) * (0.85 + 0.15 * pulse);
       if (dens > PX.bayer(x, y)) put(x, y, f > 0.6 ? 2 : f > 0.3 ? 1 : 0);
     }
     for (const q of motes) {                                                         // partikel kecil melayang keluar dengan lambat (2–4 px/s) sambil mengorbit pelan

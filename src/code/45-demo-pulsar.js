@@ -3,7 +3,7 @@
 PX.demos.pulsar = (host) => {
   const W = 128, H = 72, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), img = c.createImageData(W, H), lit = new PX.Light(W, H);
   cv.style.background = '#0a0a16';
-  const V = ['#241a66', '#2f3cb4', '#4f7bff', '#8fcbff', '#dff2ff', '#ffffff'].map(PX.hex), CX = W / 2, CY = H / 2, R = 13, HR = 17;   // R: radius bola, HR: tebal halo dither di luar bola
+  const V = ['#241a66', '#2f3cb4', '#4f7bff', '#8fcbff', '#dff2ff', '#ffffff'].map(PX.hex), CX = W / 2, CY = H / 2, R = 13, HR = 8;   // R: radius bola, HR: tebal halo dither di luar bola
   const BASE = -0.72, SWING = Math.PI / 8, FREQ = 8.5, SNAP = 0.9;               // sumbu miring, amplitudo 22.5°, ayunan cepat (periode ≈ 0.74 s), SNAP kecil = gerak halus (mendekati sinus)
   const NORM = Math.tanh(SNAP), sparks = [], rings = [], NSUB = 5, TAU = 0.5, CT = Math.cos(TAU), ST = Math.sin(TAU); let prevCos = 1, thPrev = null;   // NSUB: sub-langkah interpolasi sudut per frame; TAU: sumbu miring ke arah kamera (untuk medan 3D)
   const SPIN = 10, AXT = 0.35, TW = 96, TH = 48, TEX = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
@@ -11,7 +11,7 @@ PX.demos.pulsar = (host) => {
     const f = PX.fbm(x / 12, y / 12, 21, TW / 12, 0, 4), hot = PX.fbm(x / 8, y / 8, 47, TW / 8, 0, 3);   // oktaf lebih banyak -> bercak lebih beragam
     TEX[y * TW + x] = PX.clamp((f - 0.5) * 2.6 + 0.5 - Math.max(0, hot - 0.62) * 1.6 + Math.max(0, 0.3 - hot) * 1.4, 0, 1);
   }
-  const motes = Array.from({ length: 46 }, () => ({ d: Math.random() * HR, a: Math.random() * 6.283, sp: 1.5 + Math.random() * 2.5, w: (Math.random() - 0.5) * 0.25 }));
+  const motes = Array.from({ length: 16 }, () => ({ d: Math.random() * HR, a: Math.random() * 6.283, sp: 1 + Math.random() * 1.5, w: (Math.random() - 0.5) * 0.25 }));
   const put = (x, y, ci) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4, k = V[ci]; img.data[i] = k[0]; img.data[i + 1] = k[1]; img.data[i + 2] = k[2]; img.data[i + 3] = 255; };
   PX.loop(host, (dt, t) => {
     img.data.fill(0); lit.clear();
@@ -29,7 +29,7 @@ PX.demos.pulsar = (host) => {
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {                        // halo dither di luar bola: kerapatan turun ke luar, dimodulasi noise yang bergeser SANGAT pelan
       const d = Math.hypot(x + 0.5 - CX, y + 0.5 - CY) - R; if (d < 0.5 || d > HR) continue;
-      const f = 1 - d / HR, dens = Math.pow(f, 1.5) * (0.1 + 0.65 * PX.vnoise(x / 7 + t * 0.1, y / 7 - t * 0.07, 3)) * (0.85 + 0.15 * pulse);
+      const f = 1 - d / HR, dens = Math.pow(f, 1.5) * (0.04 + 0.38 * PX.vnoise(x / 7 + t * 0.1, y / 7 - t * 0.07, 3)) * (0.85 + 0.15 * pulse);
       if (dens > PX.bayer(x, y)) put(x, y, f > 0.6 ? 2 : f > 0.3 ? 1 : 0);
     }
     for (const q of motes) {                                                         // partikel kecil melayang keluar dengan lambat (2–4 px/s) sambil mengorbit pelan
