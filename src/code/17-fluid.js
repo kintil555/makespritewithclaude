@@ -1,4 +1,4 @@
-// 17-fluid.js — tiga model fluida murah untuk piksel: (1) PX.Surface = permukaan 1D berpegas, (2) PX.Bubbles = gelembung dari ventilasi, (3) PX.CAWater = air 2D berbasis sel (automata).
+// 17-fluid.js — tiga model fluida murah untuk piksel: (1) PX.Surface = permukaan 1D berpegas, (2) PX.Bubbles = gelembung dari ventilasi, (3) PX.CAWater = air 2D berbasis sel (automata) + pelengkap: PX.Foam (busa), PX.Fizz (gelembung mikro).
 
 // (1) Permukaan: tiap kolom = pegas (Hooke) + penyebaran ke tetangga. h>0 = naik. Langkah tetap 1/60 dtk agar stabil.
 PX.Surface = class {
@@ -81,10 +81,11 @@ PX.Bubbles = class {
 };
 
 // (3) Air sel (cellular automata). g: 0 kosong, 1 air, 2 tembok. Pindai bawah->atas, arah kiri/kanan bergantian tiap langkah agar tidak miring sebelah.
+// fall[i] = berapa langkah sel itu jatuh berturut-turut. Saat berhenti (mendarat) dicatat ke ev = {x, y, v, water} -> sumber percikan, gelombang, gelembung.
 PX.CAWater = class {
-  constructor(w, h, seed = 3) { this.w = w; this.h = h; this.g = new Uint8Array(w * h); this.m = new Uint8Array(w * h); this.stamp = 0; this.dir = 0; this.flow = 4; this.R = PX.rng(seed); }
+  constructor(w, h, seed = 3) { this.w = w; this.h = h; this.g = new Uint8Array(w * h); this.m = new Uint8Array(w * h); this.fall = new Uint8Array(w * h); this.ev = []; this.stamp = 0; this.dir = 0; this.flow = 4; this.R = PX.rng(seed); }
   step() {
-    const { w, h, g, m } = this; if (++this.stamp > 250) { this.stamp = 1; m.fill(0); } const st = this.stamp; this.dir ^= 1;
+    const { w, h, g, m, fall: fl, ev } = this; if (++this.stamp > 250) { this.stamp = 1; m.fill(0); } const st = this.stamp; this.dir ^= 1;
     for (let y = h - 2; y >= 0; y--) for (let k = 0; k < w; k++) {
       const x = this.dir ? k : w - 1 - k, i = y * w + x; if (g[i] !== 1 || m[i] === st) continue;       // m: sel yang baru dipindah langkah ini jangan diproses lagi
       const b = i + w, d = this.R() < 0.5 ? -1 : 1; let to = -1;
@@ -93,7 +94,45 @@ PX.CAWater = class {
         for (let q = 0; q < 2 && to < 0; q++) { const s = q ? -d : d; if (x + s >= 0 && x + s < w && g[b + s] === 0 && g[i + s] === 0) to = b + s; }   // 2) diagonal bawah
         for (let q = 0; q < 2 && to < 0; q++) { const s = q ? -d : d; let j = 0; while (j < this.flow && x + s * (j + 1) >= 0 && x + s * (j + 1) < w && g[i + s * (j + 1)] === 0) j++; if (j > 0) to = i + s * j; }   // 3) mengalir ke samping
       }
-      if (to >= 0) { g[to] = 1; g[i] = 0; m[to] = st; }
+      if (to !== b) { if (fl[i] >= 3 && ev.length < 48) ev.push({ x, y, v: fl[i], water: g[b] === 1 }); fl[i] = 0; }   // tidak lagi jatuh lurus = mendarat
+      if (to >= 0) { g[to] = 1; g[i] = 0; m[to] = st; fl[to] = to === b ? Math.min(255, fl[i] + 1) : 0; fl[i] = 0; }
+    }
+  }
+};
+
+// (4) Busa permukaan: intensitas per kolom, meluruh pelan; digambar sebagai piksel putih berambang Bayer tepat di muka air.
+PX.Foam = class {
+  constructor(n) { this.f = new Float32Array(n); }
+  add(x, a, s = 3) { for (let dx = -s; dx <= s; dx++) { const i = Math.round(x) + dx; if (i >= 0 && i < this.f.length) this.f[i] = Math.min(1, this.f[i] + a * (1 - Math.abs(dx) / (s + 1))); } }
+  update(dt) { for (let i = 0; i < this.f.length; i++) this.f[i] = Math.max(0, this.f[i] - dt * 0.35); }
+  draw(buf, surfY) {                                                   // surfY(x) < 0 = kolom tanpa muka air
+    for (let x = 0; x < this.f.length; x++) { const a = this.f[x]; if (a < 0.04) continue; const y = Math.round(surfY(x)); if (y < 0) continue;
+      if (a > PX.bayer(x, y)) buf.px(x, y, PX.WATER.HI); if (a * 0.8 > PX.bayer(x + 1, y - 1)) buf.px(x, y - 1, PX.WATER.LIT); }
+  }
+};
+
+// (5) Gelembung mikro di dalam air (titik-titik): tiap gelembung naik dengan goyang kecil, hilang bila keluar dari air, pecah (onPop) bila mencapai muka air.
+// inWater(x, y) -> bool menentukan di mana gelembung boleh ada, jadi cocok untuk air sel berbentuk bebas.
+PX.Fizz = class {
+  constructor(inWater, onPop, seed = 7) { Object.assign(this, { inW: inWater, onPop, list: [], max: 320, R: PX.rng(seed) }); }
+  burst(x, y, n, spread = 3, down = 0) {                              // down > 0: awalnya terseret turun oleh air yang jatuh, lalu naik
+    const R = this.R, rg = (a, b) => a + (b - a) * R();
+    for (let i = 0; i < n && this.list.length < this.max; i++) this.list.push({ x: x + rg(-spread, spread), y: y + rg(0, spread), r: rg(0.4, 1.3), vy: rg(-4, down), ph: rg(0, 6.283) });
+  }
+  update(dt) {
+    const L = this.list;
+    for (let i = L.length - 1; i >= 0; i--) {
+      const b = L[i]; b.ph += dt * (6 + 2 / b.r); b.vy += (-(10 + 14 * b.r) - b.vy) * Math.min(1, 2.5 * dt); b.y += b.vy * dt; b.x += Math.sin(b.ph) * 6 * dt;
+      const ix = Math.round(b.x), iy = Math.round(b.y);
+      if (!this.inW(ix, iy)) { if (b.vy < 0 && this.inW(ix, iy + 1) && this.onPop) this.onPop(ix, iy); L.splice(i, 1); }
+    }
+  }
+  draw(buf, lit) {
+    const P = PX.WATER;
+    for (const b of this.list) {
+      const x = Math.round(b.x), y = Math.round(b.y);
+      if (b.r < 0.9) buf.px(x, y, Math.sin(b.ph * 0.7) > 0.6 ? P.HI : P.RIM);                    // kecil = 1 piksel, berkedip
+      else { buf.px(x, y, P.HI); buf.px(x + 1, y, P.LIT); buf.px(x, y + 1, P.RIM); buf.px(x + 1, y + 1, P.SHADE); lit.glow(x + 0.5, y + 0.5, 3, P.LIT, 0.12); }
     }
   }
 };

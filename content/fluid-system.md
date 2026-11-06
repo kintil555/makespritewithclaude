@@ -85,7 +85,16 @@ Aturan yang membuatnya benar: (a) **arah pindai kiri/kanan bergantian** tiap lan
 
 **Pewarnaan**: pakai tampilan yang sama dengan demo kolam supaya ketiganya terlihat satu keluarga. Hitung kedalaman dari permukaan per kolom (pindai dari atas: sel air tanpa air di atas → `d = 0`, selain itu `d = d_atas + 1`). Isi sel air = piksel dinding bawah air dari `poolScene`, ditimpa `TINT` dengan alpha 4 tingkat menurut `tone(1 − min(1, d/14), x, y, 4, 0.25)`. Sel `d = 0` = `LIT` (kilau berjalan → `HI`), `d = 1` = `RIM`, `d = 2…6` = pita `SHADE` yang menipis lewat Bayer, sel kosong = langit. Caustic memakai `Water.caustics(lit, t, mask)` dengan `mask` = hanya sel air. Kedalaman dari *permukaan* membuat kolam dangkal tetap terang walaupun ada di dasar peta.
 
-**Kelemahan yang perlu diketahui**: permukaan sedikit berkedip (sel teratas bergerak ke samping), dan genangan tipis 1 sel tidak merata sempurna. Itu bisa diterima sebagai "kilau" di gaya piksel; jika tidak boleh, hanya izinkan gerak samping bila sel di atasnya air atau ada penurunan tinggi di tujuan.
+**Hibrida dengan permukaan pegas (demo di atas)**: sel air hanya model badan air; tumbukan dan gelombangnya dibuat oleh komponen lain supaya tidak terasa dua jenis air yang berbeda:
+1. **Deteksi mendarat**: tiap sel menyimpan `fall` (berapa langkah ia jatuh lurus). Saat ia berhenti, catat `{x, y, v, water}` ke `ev`. Itu satu-satunya "gaya" yang dibutuhkan.
+2. **Muka air** per kolom = sel teratas yang ditopang (bawahnya tidak kosong), dihaluskan `(l + 2a + r)/4` dan dibatasi ±1 dari sel mentah — ini juga menghilangkan kedipan permukaan. Lalu digeser oleh `PX.Surface` (`h[x]`): lembah hanya memotong sel air, puncak hanya mengisi sel kosong.
+3. **Saat `ev` datang**: `surface.splash(x, −sp·0.06)` (gelombang menjalar), `foam.add` (busa putih di muka air), `spray` (tetes bergravitasi; mendarat di air = riak kecil), dan `fizz.burst` (gelembung mikro terseret turun lalu naik). Beri jeda ~0,12 dtk per 4 kolom, kalau tidak aliran keran memicu semburan tiap sel.
+4. **Gelembung mikro** (`PX.Fizz`): titik 1 piksel (r < 0,9, berkedip) atau blok 2×2; naik dengan goyang kecil, hilang bila keluar dari sel air, pecah (riak + tetes kecil) bila mencapai muka air. `inWater(x, y)` dari sel membuat gelembung hanya hidup di dalam air berbentuk bebas.
+5. **Aduk**: geser acak sel air searah seretan, lalu `fizz.burst` + `splash` + `foam` sebanding kecepatan seretan.
+
+Demo kolam di atas memakai hal yang sama: benda masuk air melepas busa dan gelembung mikro, tetes yang jatuh kembali kadang menyeret satu gelembung.
+
+**Kelemahan yang perlu diketahui**: genangan tipis 1 sel tidak merata sempurna dan volume bisa bocor di sudut. Itu bisa diterima sebagai "kilau" di gaya piksel.
 
 ## Menggabungkan semuanya
 1. `surface.update(dt)`, benda, tetes, `bubbles.update(dt)`.
@@ -103,7 +112,7 @@ Aturan yang membuatnya benar: (a) **arah pindai kiri/kanan bergantian** tiap lan
 2. Langkah tetap 1/60 untuk pegas; `spread < 0.5`.
 3. Benda: satu rumus `ay = g(1 − sub/rho)`; masuk air memicu percikan sekali.
 4. Gelembung: kecepatan, goyang, tumbuh, menyatu dengan `∛`, pecah dengan efek setengah elips; detail menurut ukuran.
-5. Air sel: pindai bawah→atas, arah bergantian, stamp, keran per langkah.
+5. Air sel: pindai bawah→atas, arah bergantian, stamp, keran per langkah; catat pendaratan (`fall`) untuk gelombang, busa, percikan, dan gelembung mikro.
 6. Satu fungsi tinggi permukaan dibagikan ke semua komponen.
 7. Lihat hasil render diperbesar sebelum menyetel angka.
 

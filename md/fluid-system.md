@@ -85,7 +85,16 @@ Aturan yang membuatnya benar: (a) **arah pindai kiri/kanan bergantian** tiap lan
 
 **Pewarnaan**: pakai tampilan yang sama dengan demo kolam supaya ketiganya terlihat satu keluarga. Hitung kedalaman dari permukaan per kolom (pindai dari atas: sel air tanpa air di atas → `d = 0`, selain itu `d = d_atas + 1`). Isi sel air = piksel dinding bawah air dari `poolScene`, ditimpa `TINT` dengan alpha 4 tingkat menurut `tone(1 − min(1, d/14), x, y, 4, 0.25)`. Sel `d = 0` = `LIT` (kilau berjalan → `HI`), `d = 1` = `RIM`, `d = 2…6` = pita `SHADE` yang menipis lewat Bayer, sel kosong = langit. Caustic memakai `Water.caustics(lit, t, mask)` dengan `mask` = hanya sel air. Kedalaman dari *permukaan* membuat kolam dangkal tetap terang walaupun ada di dasar peta.
 
-**Kelemahan yang perlu diketahui**: permukaan sedikit berkedip (sel teratas bergerak ke samping), dan genangan tipis 1 sel tidak merata sempurna. Itu bisa diterima sebagai "kilau" di gaya piksel; jika tidak boleh, hanya izinkan gerak samping bila sel di atasnya air atau ada penurunan tinggi di tujuan.
+**Hibrida dengan permukaan pegas (demo di atas)**: sel air hanya model badan air; tumbukan dan gelombangnya dibuat oleh komponen lain supaya tidak terasa dua jenis air yang berbeda:
+1. **Deteksi mendarat**: tiap sel menyimpan `fall` (berapa langkah ia jatuh lurus). Saat ia berhenti, catat `{x, y, v, water}` ke `ev`. Itu satu-satunya "gaya" yang dibutuhkan.
+2. **Muka air** per kolom = sel teratas yang ditopang (bawahnya tidak kosong), dihaluskan `(l + 2a + r)/4` dan dibatasi ±1 dari sel mentah — ini juga menghilangkan kedipan permukaan. Lalu digeser oleh `PX.Surface` (`h[x]`): lembah hanya memotong sel air, puncak hanya mengisi sel kosong.
+3. **Saat `ev` datang**: `surface.splash(x, −sp·0.06)` (gelombang menjalar), `foam.add` (busa putih di muka air), `spray` (tetes bergravitasi; mendarat di air = riak kecil), dan `fizz.burst` (gelembung mikro terseret turun lalu naik). Beri jeda ~0,12 dtk per 4 kolom, kalau tidak aliran keran memicu semburan tiap sel.
+4. **Gelembung mikro** (`PX.Fizz`): titik 1 piksel (r < 0,9, berkedip) atau blok 2×2; naik dengan goyang kecil, hilang bila keluar dari sel air, pecah (riak + tetes kecil) bila mencapai muka air. `inWater(x, y)` dari sel membuat gelembung hanya hidup di dalam air berbentuk bebas.
+5. **Aduk**: geser acak sel air searah seretan, lalu `fizz.burst` + `splash` + `foam` sebanding kecepatan seretan.
+
+Demo kolam di atas memakai hal yang sama: benda masuk air melepas busa dan gelembung mikro, tetes yang jatuh kembali kadang menyeret satu gelembung.
+
+**Kelemahan yang perlu diketahui**: genangan tipis 1 sel tidak merata sempurna dan volume bisa bocor di sudut. Itu bisa diterima sebagai "kilau" di gaya piksel.
 
 ## Menggabungkan semuanya
 1. `surface.update(dt)`, benda, tetes, `bubbles.update(dt)`.
@@ -103,7 +112,7 @@ Aturan yang membuatnya benar: (a) **arah pindai kiri/kanan bergantian** tiap lan
 2. Langkah tetap 1/60 untuk pegas; `spread < 0.5`.
 3. Benda: satu rumus `ay = g(1 − sub/rho)`; masuk air memicu percikan sekali.
 4. Gelembung: kecepatan, goyang, tumbuh, menyatu dengan `∛`, pecah dengan efek setengah elips; detail menurut ukuran.
-5. Air sel: pindai bawah→atas, arah bergantian, stamp, keran per langkah.
+5. Air sel: pindai bawah→atas, arah bergantian, stamp, keran per langkah; catat pendaratan (`fall`) untuk gelombang, busa, percikan, dan gelembung mikro.
 6. Satu fungsi tinggi permukaan dibagikan ke semua komponen.
 7. Lihat hasil render diperbesar sebelum menyetel angka.
 
@@ -112,7 +121,7 @@ Aturan yang membuatnya benar: (a) **arah pindai kiri/kanan bergantian** tiap lan
 **Kode: `src/code/17-fluid.js`**
 
 ```js
-// 17-fluid.js — tiga model fluida murah untuk piksel: (1) PX.Surface = permukaan 1D berpegas, (2) PX.Bubbles = gelembung dari ventilasi, (3) PX.CAWater = air 2D berbasis sel (automata).
+// 17-fluid.js — tiga model fluida murah untuk piksel: (1) PX.Surface = permukaan 1D berpegas, (2) PX.Bubbles = gelembung dari ventilasi, (3) PX.CAWater = air 2D berbasis sel (automata) + pelengkap: PX.Foam (busa), PX.Fizz (gelembung mikro).
 
 // (1) Permukaan: tiap kolom = pegas (Hooke) + penyebaran ke tetangga. h>0 = naik. Langkah tetap 1/60 dtk agar stabil.
 PX.Surface = class {
@@ -195,10 +204,11 @@ PX.Bubbles = class {
 };
 
 // (3) Air sel (cellular automata). g: 0 kosong, 1 air, 2 tembok. Pindai bawah->atas, arah kiri/kanan bergantian tiap langkah agar tidak miring sebelah.
+// fall[i] = berapa langkah sel itu jatuh berturut-turut. Saat berhenti (mendarat) dicatat ke ev = {x, y, v, water} -> sumber percikan, gelombang, gelembung.
 PX.CAWater = class {
-  constructor(w, h, seed = 3) { this.w = w; this.h = h; this.g = new Uint8Array(w * h); this.m = new Uint8Array(w * h); this.stamp = 0; this.dir = 0; this.flow = 4; this.R = PX.rng(seed); }
+  constructor(w, h, seed = 3) { this.w = w; this.h = h; this.g = new Uint8Array(w * h); this.m = new Uint8Array(w * h); this.fall = new Uint8Array(w * h); this.ev = []; this.stamp = 0; this.dir = 0; this.flow = 4; this.R = PX.rng(seed); }
   step() {
-    const { w, h, g, m } = this; if (++this.stamp > 250) { this.stamp = 1; m.fill(0); } const st = this.stamp; this.dir ^= 1;
+    const { w, h, g, m, fall: fl, ev } = this; if (++this.stamp > 250) { this.stamp = 1; m.fill(0); } const st = this.stamp; this.dir ^= 1;
     for (let y = h - 2; y >= 0; y--) for (let k = 0; k < w; k++) {
       const x = this.dir ? k : w - 1 - k, i = y * w + x; if (g[i] !== 1 || m[i] === st) continue;       // m: sel yang baru dipindah langkah ini jangan diproses lagi
       const b = i + w, d = this.R() < 0.5 ? -1 : 1; let to = -1;
@@ -207,7 +217,45 @@ PX.CAWater = class {
         for (let q = 0; q < 2 && to < 0; q++) { const s = q ? -d : d; if (x + s >= 0 && x + s < w && g[b + s] === 0 && g[i + s] === 0) to = b + s; }   // 2) diagonal bawah
         for (let q = 0; q < 2 && to < 0; q++) { const s = q ? -d : d; let j = 0; while (j < this.flow && x + s * (j + 1) >= 0 && x + s * (j + 1) < w && g[i + s * (j + 1)] === 0) j++; if (j > 0) to = i + s * j; }   // 3) mengalir ke samping
       }
-      if (to >= 0) { g[to] = 1; g[i] = 0; m[to] = st; }
+      if (to !== b) { if (fl[i] >= 3 && ev.length < 48) ev.push({ x, y, v: fl[i], water: g[b] === 1 }); fl[i] = 0; }   // tidak lagi jatuh lurus = mendarat
+      if (to >= 0) { g[to] = 1; g[i] = 0; m[to] = st; fl[to] = to === b ? Math.min(255, fl[i] + 1) : 0; fl[i] = 0; }
+    }
+  }
+};
+
+// (4) Busa permukaan: intensitas per kolom, meluruh pelan; digambar sebagai piksel putih berambang Bayer tepat di muka air.
+PX.Foam = class {
+  constructor(n) { this.f = new Float32Array(n); }
+  add(x, a, s = 3) { for (let dx = -s; dx <= s; dx++) { const i = Math.round(x) + dx; if (i >= 0 && i < this.f.length) this.f[i] = Math.min(1, this.f[i] + a * (1 - Math.abs(dx) / (s + 1))); } }
+  update(dt) { for (let i = 0; i < this.f.length; i++) this.f[i] = Math.max(0, this.f[i] - dt * 0.35); }
+  draw(buf, surfY) {                                                   // surfY(x) < 0 = kolom tanpa muka air
+    for (let x = 0; x < this.f.length; x++) { const a = this.f[x]; if (a < 0.04) continue; const y = Math.round(surfY(x)); if (y < 0) continue;
+      if (a > PX.bayer(x, y)) buf.px(x, y, PX.WATER.HI); if (a * 0.8 > PX.bayer(x + 1, y - 1)) buf.px(x, y - 1, PX.WATER.LIT); }
+  }
+};
+
+// (5) Gelembung mikro di dalam air (titik-titik): tiap gelembung naik dengan goyang kecil, hilang bila keluar dari air, pecah (onPop) bila mencapai muka air.
+// inWater(x, y) -> bool menentukan di mana gelembung boleh ada, jadi cocok untuk air sel berbentuk bebas.
+PX.Fizz = class {
+  constructor(inWater, onPop, seed = 7) { Object.assign(this, { inW: inWater, onPop, list: [], max: 320, R: PX.rng(seed) }); }
+  burst(x, y, n, spread = 3, down = 0) {                              // down > 0: awalnya terseret turun oleh air yang jatuh, lalu naik
+    const R = this.R, rg = (a, b) => a + (b - a) * R();
+    for (let i = 0; i < n && this.list.length < this.max; i++) this.list.push({ x: x + rg(-spread, spread), y: y + rg(0, spread), r: rg(0.4, 1.3), vy: rg(-4, down), ph: rg(0, 6.283) });
+  }
+  update(dt) {
+    const L = this.list;
+    for (let i = L.length - 1; i >= 0; i--) {
+      const b = L[i]; b.ph += dt * (6 + 2 / b.r); b.vy += (-(10 + 14 * b.r) - b.vy) * Math.min(1, 2.5 * dt); b.y += b.vy * dt; b.x += Math.sin(b.ph) * 6 * dt;
+      const ix = Math.round(b.x), iy = Math.round(b.y);
+      if (!this.inW(ix, iy)) { if (b.vy < 0 && this.inW(ix, iy + 1) && this.onPop) this.onPop(ix, iy); L.splice(i, 1); }
+    }
+  }
+  draw(buf, lit) {
+    const P = PX.WATER;
+    for (const b of this.list) {
+      const x = Math.round(b.x), y = Math.round(b.y);
+      if (b.r < 0.9) buf.px(x, y, Math.sin(b.ph * 0.7) > 0.6 ? P.HI : P.RIM);                    // kecil = 1 piksel, berkedip
+      else { buf.px(x, y, P.HI); buf.px(x + 1, y, P.LIT); buf.px(x, y + 1, P.RIM); buf.px(x + 1, y + 1, P.SHADE); lit.glow(x + 0.5, y + 0.5, 3, P.LIT, 0.12); }
     }
   }
 };
@@ -225,7 +273,7 @@ PX.demos.fluid = (host) => {
   const objs = [], drops = []; let t = 0, rho = 1.6, caus = true;
   const sy = (x) => surf.y(x) + Math.sin(x * 0.11 + t * 1.6) * 0.4 + Math.sin(x * 0.043 - t * 0.9) * 0.5;      // permukaan = simulasi + ombak halus
   const bub = new PX.Bubbles({ x0: 0, x1: W, top: TOP, ground: () => FLOOR, surfY: sy, density: 0.7, seed: 2 });
-  const ui = PX.ui(host);
+  const foam = new PX.Foam(W), ui = PX.ui(host);
   ui.range('Massa jenis benda', 0.4, 2.5, 0.1, rho, (v) => (rho = v)); ui.check('Caustic', true, (v) => (caus = v));
   ui.button('Hujan batu', () => { for (let i = 0; i < 6; i++) drop(rg(10, W - 10), -i * 12); });
   const drop = (x, y) => { objs.push({ x, y, vx: rg(-8, 8), vy: 0, r: rg(2, 4), rho, wet: false }); if (objs.length > 14) objs.shift(); };
@@ -237,15 +285,16 @@ PX.demos.fluid = (host) => {
       o.vy += 150 * (1 - sub / o.rho) * dt;                                                                    // gravitasi - gaya apung (∝ tercelup / massa jenis)
       o.vy -= o.vy * 2.2 * sub * dt; o.vx -= o.vx * 1.5 * sub * dt; o.x += o.vx * dt; o.y += o.vy * dt;        // hambatan hanya saat tercelup
       if (o.y + o.r > FLOOR) { o.y = FLOOR - o.r; o.vy *= -0.2; o.vx *= 0.5; }
-      if (!o.wet && sub > 0) { o.wet = true; surf.splash(o.x, -Math.min(3, o.vy * o.r * 0.004)); spray(o.x, s, Math.abs(o.vy), o.r); }   // masuk air: tekan permukaan + percikan
+      if (!o.wet && sub > 0) { o.wet = true; surf.splash(o.x, -Math.min(3, o.vy * o.r * 0.004)); spray(o.x, s, Math.abs(o.vy), o.r); foam.add(o.x, Math.min(1, Math.abs(o.vy) * o.r * 0.004), 3); for (let n = Math.min(16, Math.floor(Math.abs(o.vy) * o.r * 0.06)); n > 0; n--) bub.add(o.x + rg(-o.r, o.r), s + rg(3, 3 + 2 * o.r), rg(0.4, 0.8)); }   // masuk air: tekan permukaan + percikan
       if (sub === 0) o.wet = false;
-      if (sub > 0.5 && Math.hypot(o.vx, o.vy) > 30 && R() < dt * 12) bub.add(o.x + rg(-1, 1), o.y - o.r * 0.5, rg(0.6, 1.4));   // jejak gelembung
+      if (sub > 0.5 && Math.hypot(o.vx, o.vy) > 30 && R() < dt * 12) bub.add(o.x + rg(-1, 1), o.y - o.r * 0.5, rg(0.6, 1.4));
+      if (sub > 0.3 && Math.hypot(o.vx, o.vy) > 15 && R() < dt * 30) bub.add(o.x + rg(-o.r, o.r), o.y + rg(-o.r, o.r), rg(0.4, 0.8));   // titik-titik gelembung mikro   // jejak gelembung
     }
-    for (let i = drops.length - 1; i >= 0; i--) { const d = drops[i]; d.vy += 220 * dt; d.x += d.vx * dt; d.y += d.vy * dt; if (d.vy > 0 && d.y >= sy(d.x)) { surf.splash(d.x, -0.25); drops.splice(i, 1); } }   // tetes jatuh -> riak kecil
-    surf.update(dt); bub.update(dt);
+    for (let i = drops.length - 1; i >= 0; i--) { const d = drops[i]; d.vy += 220 * dt; d.x += d.vx * dt; d.y += d.vy * dt; if (d.vy > 0 && d.y >= sy(d.x)) { surf.splash(d.x, -0.25); foam.add(d.x, 0.15, 1); if (R() < 0.35) bub.add(d.x, sy(d.x) + rg(2, 5), rg(0.4, 0.7)); drops.splice(i, 1); } }   // tetes jatuh -> riak kecil
+    surf.update(dt); bub.update(dt); foam.update(dt);
     lit.clear(); wat.compose(buf, sc.sky, sc.under, sy);
     for (const o of objs) { buf.disc(o.x, o.y, o.r, [58, 52, 78]); buf.disc(o.x - 0.5, o.y - 0.5, o.r - 1, [110, 106, 128]); buf.px(o.x - o.r * 0.4, o.y - o.r * 0.4, [207, 205, 210]); }
-    wat.tint(buf, sy); wat.snow(buf, t); bub.draw(buf, lit, 'back'); wat.surface(buf, lit, t, sy); bub.draw(buf, lit, 'front');
+    wat.tint(buf, sy); wat.snow(buf, t); bub.draw(buf, lit, 'back'); wat.surface(buf, lit, t, sy); foam.draw(buf, sy); bub.draw(buf, lit, 'front');
     for (const d of drops) { buf.px(d.x, d.y, PX.WATER.HI); buf.px(d.x - d.vx * 0.02, d.y - d.vy * 0.02, PX.WATER.LIT); }
     if (caus) wat.caustics(lit, t);
     buf.flush(c); lit.flush(c);
@@ -258,38 +307,82 @@ PX.demos.fluid = (host) => {
 **Kode: `src/code/53-demo-waterca.js`**
 
 ```js
-// Demo air sel: tuang air / gambar tembok / hapus dengan menyeret. Tampilan sama dengan demo kolam: latar senja, tint kedalaman 4 tingkat (dither), garis permukaan, caustic.
+// Demo air sel hibrida: badan air = sel (mengalir), muka air = pegas 1D (gelombang), tumbukan -> percikan + busa + gelembung mikro. Alat 'aduk' = mengobok air.
 PX.demos.waterca = (host) => {
-  const W = 128, H = 72, cv = PX.canvas(host, W, H, 768, false, 'Seret di atas kanvas untuk memakai alat'), c = cv.getContext('2d'), buf = new PX.Buf(W, H), p = PX.pointer(cv), sim = new PX.CAWater(W, H), lit = new PX.Light(W, H), wat = new PX.Water(0, W, 0, H - 2), sc = PX.poolScene(W, H, H * 0.45, () => H - 2), P = PX.WATER;
-  const STONE = ['#2b2a3a', '#4a4a5e', '#6e6f80'].map(PX.hex), A = [0.1, 0.18, 0.26, 0.34];
-  let tool = 'water', faucet = true, caus = true, t = 0; const dep = new Uint16Array(W);
-  const build = () => { sim.g.fill(0); for (let x = 0; x < W; x++) sim.g[(H - 1) * W + x] = sim.g[(H - 2) * W + x] = 2; for (let y = 0; y < H; y++) sim.g[y * W] = sim.g[y * W + W - 1] = 2; for (let x = 24; x < 72; x++) sim.g[44 * W + x] = sim.g[45 * W + x] = 2; for (let y = 30; y < 46; y++) sim.g[y * W + 90] = sim.g[y * W + 91] = 2; };
+  const W = 128, H = 72, FL = H - 2, cv = PX.canvas(host, W, H, 768, false, 'Seret di atas kanvas untuk memakai alat'), c = cv.getContext('2d'), buf = new PX.Buf(W, H), p = PX.pointer(cv);
+  const sim = new PX.CAWater(W, H), g = sim.g, lit = new PX.Light(W, H), wat = new PX.Water(0, W, 0, FL), sc = PX.poolScene(W, H, H * 0.45, () => FL), P = PX.WATER;
+  const surf = new PX.Surface(W, 0), foam = new PX.Foam(W), R = PX.rng(11), rg = (a, b) => a + (b - a) * R();
+  const STONE = ['#2b2a3a', '#4a4a5e', '#6e6f80'].map(PX.hex), TA = [0.1, 0.18, 0.26, 0.34];
+  const top = new Int16Array(W).fill(-1), y0 = new Int16Array(W).fill(-1), dp = new Uint16Array(W), drops = [], cool = new Float32Array((W >> 2) + 1);     // top = muka air efektif (-1 = kolom tanpa muka air), y0 = muka sel mentah
+  const inW = (x, y) => x >= 0 && y >= 0 && x < W && y < H && g[y * W + x] === 1 && !(top[x] >= 0 && y < top[x]);
+  const spray = (x, y, v, n) => { for (let i = 0; i < n && drops.length < 400; i++) drops.push({ x: x + rg(-1.5, 1.5), y: y - 1, vx: rg(-30, 30), vy: -(30 + rg(0.3, 1) * Math.min(70, v * 3)) }); };
+  const fizz = new PX.Fizz(inW, (x) => { surf.splash(x, -0.05); foam.add(x, 0.1, 1); if (R() < 0.4) spray(x, top[x] >= 0 ? top[x] : 0, 4, 1); });
+  let tool = 'water', faucet = true, caus = true, t = 0, px0 = 0, py0 = 0;
+  const build = () => { g.fill(0); sim.fall.fill(0); drops.length = 0; fizz.list.length = 0; surf.h.fill(0); surf.v.fill(0); foam.f.fill(0);
+    for (let x = 0; x < W; x++) g[(H - 1) * W + x] = g[(H - 2) * W + x] = 2; for (let y = 0; y < H; y++) g[y * W] = g[y * W + W - 1] = 2; for (let x = 24; x < 72; x++) g[44 * W + x] = g[45 * W + x] = 2; for (let y = 30; y < 46; y++) g[y * W + 90] = g[y * W + 91] = 2; };
   const ui = PX.ui(host);
-  ui.select('Alat', [{ label: 'tuang air', value: 'water' }, { label: 'tembok', value: 'wall' }, { label: 'hapus', value: 'erase' }], tool, (v) => (tool = v));
+  ui.select('Alat', [{ label: 'tuang air', value: 'water' }, { label: 'aduk', value: 'stir' }, { label: 'tembok', value: 'wall' }, { label: 'hapus', value: 'erase' }], tool, (v) => (tool = v));
   ui.range('Aliran samping', 1, 8, 1, sim.flow, (v) => (sim.flow = v)); ui.check('Keran', true, (v) => (faucet = v)); ui.check('Caustic', true, (v) => (caus = v)); ui.button('Reset', build);
   build();
+  const impacts = () => {                                                                                       // sel jatuh mendarat -> gelombang, busa, gelembung terseret, percikan
+    for (const e of sim.ev) {
+      const sp = Math.min(40, e.v), k = e.x >> 2; if (t - cool[k] < 0.12) continue; cool[k] = t;                    // jeda per ~4 kolom: aliran utuh tidak memicu semburan tiap sel
+      if (e.water) { surf.splash(e.x, -Math.min(2.2, sp * 0.06)); foam.add(e.x, Math.min(1, sp * 0.04), 3); fizz.burst(e.x, e.y + 2, Math.min(6, 1 + ((sp * 0.15) | 0)), 3, 24); }
+      spray(e.x, e.y, sp, Math.min(e.water ? 5 : 3, 1 + ((sp * 0.12) | 0)));
+    }
+    sim.ev.length = 0;
+  };
+  const surface = () => {                                                                                       // muka air per kolom: sel teratas yang ditopang, dihaluskan, lalu digeser gelombang pegas
+    for (let x = 0; x < W; x++) { y0[x] = top[x] = -1; let y = 0; while (y < H && g[y * W + x] === 0) y++; if (y < H - 1 && g[y * W + x] === 1 && g[(y + 1) * W + x] !== 0) y0[x] = y; }
+    for (let x = 0; x < W; x++) {
+      const a = y0[x]; if (a < 0) continue;
+      const l = x > 0 && y0[x - 1] >= 0 ? y0[x - 1] : a, r = x < W - 1 && y0[x + 1] >= 0 ? y0[x + 1] : a;
+      let ty = Math.round(PX.clamp(PX.clamp((l + 2 * a + r) / 4, a - 1, a + 1) - PX.clamp(surf.h[x] * 1.3, -3, 3), a - 3, a + 3));
+      while (ty > a && g[ty * W + x] !== 1) ty--; while (ty < a && g[ty * W + x] !== 0) ty++;                      // lembah hanya memotong sel air, puncak hanya mengisi sel kosong
+      top[x] = ty;
+    }
+  };
   PX.loop(host, (dt) => {
-    t += dt;
+    t += dt; const mx = p.x | 0, my = p.y | 0, sp = Math.hypot(mx - px0, my - py0);
     if (p.down && p.in) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-      const x = p.x + dx, y = p.y + dy, i = y * W + x; if (x < 1 || y < 0 || x >= W - 1 || y >= H - 2 || dx * dx + dy * dy > 5) continue;
-      if (tool === 'water' && sim.g[i] === 0) sim.g[i] = 1; else if (tool === 'wall' && sim.g[i] !== 2) sim.g[i] = 2; else if (tool === 'erase') sim.g[i] = 0;
+      const x = mx + dx, y = my + dy, i = y * W + x; if (x < 1 || y < 0 || x >= W - 1 || y >= H - 2 || dx * dx + dy * dy > 5) continue;
+      if (tool === 'water' && g[i] === 0) g[i] = 1; else if (tool === 'wall' && g[i] !== 2) g[i] = 2; else if (tool === 'erase') g[i] = 0;
     }
-    for (let k = 0; k < 2; k++) { if (faucet) for (let x = 40; x < 44; x++) if (sim.g[2 * W + x] === 0) sim.g[2 * W + x] = 1; sim.step(); }   // keran menyuntik tiap langkah -> aliran utuh
-    dep.fill(0); lit.clear();
+    if (p.down && p.in && tool === 'stir' && sp > 0.3) {                                                           // kobok: geser sel air acak searah seretan + gelembung + riak + percikan
+      const sx = Math.sign(mx - px0), sy = Math.sign(my - py0);
+      for (let k = 0; k < 14; k++) {
+        const x = mx + ((R() * 7 - 3.5) | 0), y = my + ((R() * 7 - 3.5) | 0); if (x < 1 || x >= W - 1 || y < 0 || y >= H - 2 || g[y * W + x] !== 1) continue;
+        const nx = x + (R() < 0.6 ? sx : ((R() * 3 - 1) | 0)), ny = y + (R() < 0.6 ? sy : ((R() * 3 - 1) | 0));
+        if (nx > 0 && nx < W - 1 && ny >= 0 && ny < H - 2 && g[ny * W + nx] === 0) { g[ny * W + nx] = 1; g[y * W + x] = 0; sim.fall[ny * W + nx] = 0; }
+      }
+      fizz.burst(mx, my, Math.min(3, 1 + ((sp * 0.6) | 0)), 3, 6);
+      const ts = top[mx]; if (ts >= 0 && Math.abs(my - ts) < 7) { surf.splash(mx, -Math.min(1.2, sp * 0.1)); foam.add(mx, Math.min(0.6, sp * 0.05), 3); if (R() < Math.min(1, sp * 0.1)) spray(mx, ts, sp * 2, 1); }
+    }
+    px0 = mx; py0 = my;
+    for (let k = 0; k < 2; k++) { if (faucet) for (let x = 40; x < 44; x++) if (g[2 * W + x] === 0) { g[2 * W + x] = 1; sim.fall[2 * W + x] = 0; } sim.step(); }   // keran menyuntik tiap langkah -> aliran utuh
+    impacts(); surf.update(dt); surface(); fizz.update(dt); foam.update(dt);
+    for (let i = drops.length - 1; i >= 0; i--) {                                                                 // tetes: gravitasi; jatuh ke air = riak + busa + kadang gelembung
+      const d = drops[i]; d.vy += 220 * dt; d.x += d.vx * dt; d.y += d.vy * dt; const ix = Math.round(d.x), iy = Math.round(d.y);
+      if (ix < 0 || ix >= W || iy >= H) { drops.splice(i, 1); continue; }
+      if (iy >= 0) { const v = g[iy * W + ix]; if (v === 2) drops.splice(i, 1); else if (v === 1 && d.vy > 0 && inW(ix, iy)) { surf.splash(ix, -0.12); foam.add(ix, 0.12, 1); if (R() < 0.3) fizz.burst(ix, iy + 1, 1 + ((R() * 2) | 0), 1.5, 14); drops.splice(i, 1); } }
+    }
+    dp.fill(0); lit.clear();
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const v = sim.g[y * W + x], o = y * W + x;
-      if (v === 2) { buf.px(x, y, STONE[PX.tone(0.25 + 0.6 * PX.hash(x >> 1, y >> 1, 3), x, y, 3, 0.25)]); dep[x] = 0; }
-      else if (v === 1) {
-        const above = y > 0 && sim.g[o - W] === 1, d = above ? dep[x] + 1 : 0; dep[x] = d;
-        buf.d[o] = sc.under.d[o];                                                                            // isi air = dinding bawah air (sama dengan demo kolam)
-        buf.px(x, y, P.TINT, A[PX.tone(1 - Math.min(1, d / 14), x, y, 4, 0.25)]);                            // tint kedalaman dari permukaan, 4 tingkat + dither
-        if (d === 0) { const glint = Math.sin(x * 0.37 - t * 2.3) * Math.sin(x * 0.13 + t * 1.1) > 0.55; buf.px(x, y, glint ? P.HI : P.LIT); }
-        else if (d === 1) buf.px(x, y, P.RIM);
-        else if (d < 7 && PX.bayer(x, y) < 0.5 - d * 0.07) buf.px(x, y, P.SHADE);                            // pita bayangan menipis di bawah permukaan
-        if (d === 0 && (x & 3) === 0) lit.glow(x, y + 2, 7, P.LIT, 0.09);
-      } else { buf.d[o] = sc.sky.d[o]; dep[x] = 0; }
+      const o = y * W + x, v = g[o], tx = top[x], open = tx >= 0;
+      if (v === 2) { buf.px(x, y, STONE[PX.tone(0.25 + 0.6 * PX.hash(x >> 1, y >> 1, 3), x, y, 3, 0.25)]); dp[x] = 0; continue; }
+      const w = open ? (v === 1 && y >= tx) || (v === 0 && y >= tx && y < y0[x]) : v === 1;
+      if (!w) { buf.d[o] = sc.sky.d[o]; dp[x] = 0; continue; }
+      const d = y > 0 && g[o - W] === 2 ? 4 : dp[x]; dp[x] = d + 1;                                              // d = kedalaman dari muka; di bawah tembok dianggap dalam (tanpa kilau muka)
+      buf.d[o] = sc.under.d[o];
+      if (!open && y < H - 1 && g[o + W] === 0) { buf.px(x, y, (x + y) & 1 ? P.LIT : P.RIM); continue; }       // sel jatuh bebas (aliran/tetes) = terang
+      buf.px(x, y, P.TINT, TA[PX.tone(1 - Math.min(1, d / 14), x, y, 4, 0.25)]);
+      if (d === 0) { const glint = Math.sin(x * 0.37 - t * 2.3) * Math.sin(x * 0.13 + t * 1.1) > 0.55; buf.px(x, y, glint ? P.HI : P.LIT); if ((x & 3) === 0) lit.glow(x, y + 2, 7, P.LIT, glint ? 0.2 : 0.09); }
+      else if (d === 1) buf.px(x, y, P.RIM);
+      else if (d < 7 && PX.bayer(x, y) < 0.5 - d * 0.07) buf.px(x, y, P.SHADE);
     }
-    if (caus) wat.caustics(lit, t, (x, y) => y < H && sim.g[y * W + x] === 1);
+    foam.draw(buf, (x) => top[x]); fizz.draw(buf, lit);
+    for (const d of drops) { buf.px(d.x, d.y, P.HI); buf.px(d.x - d.vx * 0.02, d.y - d.vy * 0.02, P.LIT); }
+    if (caus) wat.caustics(lit, t, (x, y) => y < H && inW(x, y));
     buf.flush(c); lit.flush(c);
   });
 };
