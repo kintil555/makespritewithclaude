@@ -74,6 +74,7 @@ PX.ui = (host) => {
       const fill = () => r.style.setProperty('--p', ((r.value - min) / (max - min)) * 100 + '%');
       r.oninput = () => { fill(); fn(+r.value); }; fill(); wrap(label, r); return r;
     },
+    button(label, fn) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = fn; bar.appendChild(b); return b; },
     check(label, val, fn) {
       const c = document.createElement('input'); c.type = 'checkbox'; c.checked = val;
       c.onchange = () => fn(c.checked); wrap(label, c); return c;

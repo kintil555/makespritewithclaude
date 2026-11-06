@@ -112,9 +112,9 @@
     },
     {
       "slug": "crater-hole",
-      "title": "Lubang, kawah, dan gosong pada dinding",
+      "title": "Lubang, kawah, dan kerusakan per elemen",
       "category": "efek",
-      "summary": "Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.",
+      "summary": "Sistem Sprite Fusion — halaman = grid sel milik elemen; tiap elemen punya kekerasan (hp) berbeda, retak bertahap, dan bisa copot; lubang bertepi tak beraturan dengan gosong, bayangan kedalaman, dan serpihan berwarna asli.",
       "html": "https://makespritewithclaude.pages.dev/articles/crater-hole.html",
       "markdown": "https://makespritewithclaude.pages.dev/md/crater-hole.md",
       "code": [
