@@ -39,7 +39,14 @@ const toHtml = (a) => marked.parse(tokens(a.body, 'html'), { gfm: true })
   .replace(/<p>@@DEMO:([\w-]+)@@<\/p>/g, (_, n) => `<div class="demo" data-demo="${n}"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>`)
   .replace(/<p>@@CODE:([\w-]+)@@<\/p>/g, (_, n) => `<details class="code" open><summary>Kode: <code>src/code/${n}.js</code></summary><pre><code class="language-js">${esc(code[n])}</code></pre></details>`);
 
-const layout = ({ title, desc, url, body, depth, jsonld, md }) => {
+const short = (t) => t.split(/ — | – /)[0];   // label tombol sidebar = judul sebelum tanda pisah
+const sidebar = (r, cur) => `<aside class="side" aria-label="Kategori dan info">
+${Object.entries(CATS).map(([k, c]) => `<p class="sh"><a href="${r}index.html#${k}">${c.title}</a></p>${articles.filter((a) => a.category === k).map((a) => `<a class="sb${a.slug === cur ? ' on' : ''}" href="${r}articles/${a.slug}.html"${a.slug === cur ? ' aria-current="page"' : ''}>${esc(short(a.title))}</a>`).join('')}`).join('\n')}
+<p class="sh">Info</p>
+<a class="sb${cur === '' ? ' on' : ''}" href="${r}index.html">Beranda</a><a class="sb" href="${r}index.html#ai">Untuk AI &amp; agen</a><a class="sb" href="${r}llms.txt">llms.txt</a><a class="sb" href="${r}llms-full.txt">llms-full.txt</a><a class="sb" href="${r}index.json">index.json</a><a class="sb" href="${r}sitemap.xml">sitemap.xml</a><a class="sb" href="https://github.com/kintil555/makespritewithclaude">GitHub</a>
+</aside>`;
+
+const layout = ({ title, desc, url, body, depth, jsonld, md, cur = '' }) => {
   const r = '../'.repeat(depth);
   return `<!doctype html>
 <html lang="id">
@@ -57,9 +64,8 @@ ${md ? `<link rel="alternate" type="text/markdown" href="${SITE}/${md}" title="M
 </head>
 <body>
 <div class="shell">
-<header class="top"><a class="brand" href="${r}index.html"><span class="logo" aria-hidden="true"></span>${NAME}</a>
-<nav aria-label="Navigasi"><a href="${r}index.html#rendering">Rendering</a><a href="${r}index.html#efek">Efek</a><a href="${r}index.html#karakter">Karakter</a><a href="${r}index.html#ai">Untuk AI</a></nav></header>
-${body}
+<header class="top"><a class="brand" href="${r}index.html"><span class="logo" aria-hidden="true"></span>${NAME}</a></header>
+<div class="layout">${sidebar(r, cur)}${body}</div>
 <footer><p>Akses mesin: <a href="${r}llms.txt">llms.txt</a> · <a href="${r}llms-full.txt">llms-full.txt</a> · <a href="${r}index.json">index.json</a> · <a href="${r}sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
 </div>
 <script src="${r}assets/px.js"></script><script src="${r}assets/site.js"></script>
@@ -75,7 +81,7 @@ for (const [i, a] of articles.entries()) {
 ${toHtml(a)}
 <nav class="pn">${prev ? `<a href="${prev.slug}.html">← ${esc(prev.title)}</a>` : '<span></span>'}${next ? `<a href="${next.slug}.html">${esc(next.title)} →</a>` : ''}</nav>
 </article></main>`;
-  write(`articles/${a.slug}.html`, layout({ title: `${a.title} — ${NAME}`, desc: a.summary, url, body, depth: 1, md: `md/${a.slug}.md`,
+  write(`articles/${a.slug}.html`, layout({ title: `${a.title} — ${NAME}`, desc: a.summary, url, body, depth: 1, cur: a.slug, md: `md/${a.slug}.md`,
     jsonld: { '@context': 'https://schema.org', '@type': 'TechArticle', headline: a.title, description: a.summary, inLanguage: 'id', url, articleSection: CATS[a.category].title, author: { '@type': 'Person', name: 'kintil555' } } }));
   write(`md/${a.slug}.md`, `# ${a.title}\n\n> ${a.summary}\n\nKategori: ${CATS[a.category].title} · URL: ${url}\n\n${tokens(a.body, 'md')}\n`);
 }
@@ -86,7 +92,7 @@ write('index.html', layout({ title: `${NAME} — sprite pixel prosedural`, desc:
   jsonld: { '@context': 'https://schema.org', '@type': 'WebSite', name: NAME, description: TAGLINE, url: SITE, inLanguage: 'id' },
   body: `<main><section class="hero"><h1>Sprite pixel yang bagus, dibuat dengan kode.</h1><p class="lead">${TAGLINE}</p>
 <div class="demo" data-demo="hires"><p class="nojs">Demo butuh JavaScript.</p></div></section>
-<section class="ai"><h2>Untuk AI &amp; agen</h2><p>Semua konten tersedia sebagai teks bersih tanpa JavaScript:</p>
+<section class="ai" id="ai"><h2>Untuk AI &amp; agen</h2><p>Semua konten tersedia sebagai teks bersih tanpa JavaScript:</p>
 <ul><li><a href="llms.txt"><code>/llms.txt</code></a> — indeks ringkas + tautan markdown per artikel</li><li><a href="llms-full.txt"><code>/llms-full.txt</code></a> — seluruh isi + seluruh kode dalam 1 berkas</li><li><a href="index.json"><code>/index.json</code></a> — metadata mesin-terbaca</li><li><code>/md/&lt;slug&gt;.md</code> — tiap artikel dalam markdown</li></ul>
 <p>Mulai dari <a href="articles/ai-prompt-playbook.html">Panduan prompt untuk AI</a>, lalu <a href="articles/hires-to-pixel.html">teknik inti</a>.</p></section>
 ${sections}</main>` }));
