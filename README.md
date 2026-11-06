@@ -2,7 +2,7 @@
 
 Blog statis berisi teknik agar Claude (atau AI lain) bisa membuat **sprite pixel art prosedural** yang bagus: render halus → grid piksel, palet + dithering, buffer piksel, sprite sheet, komposit sprite (outline/bayangan/flash), parallax berlapis, texturing prosedural (ramp, klaster, tile, bake, air), resep VFX, serta efek (tracer, ledakan, lubang, api, hujan, bola neutron/pulsar, black hole, fluida dan gelembung) dan karakter dari persamaan.
 
-Situs: https://makespritewithclaude.pages.dev/ (Cloudflare Pages: preset None, tanpa build command, output dir kosong).
+Situs: https://makespritewithclaude.pages.dev/ (Cloudflare Pages: preset None, Build command `npm run build`, output dir kosong — situs di-build ulang otomatis tiap push, jadi kode di artikel selalu sama dengan `src/code`).
 
 ## Akses untuk AI
 - `/llms.txt` — indeks + tautan markdown per artikel
