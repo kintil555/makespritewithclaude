@@ -169,6 +169,77 @@ PX.Light = class {
   }
 };
 
+/* 13-composite.js */
+// 13-composite.js — sprite berindeks + komposit bertahap dari MASK: bayangan -> outline -> badan (+ flash, tint sisi jauh).
+// Sprite = { w, h, idx (0 kosong, 1.. indeks palet), far (1 = bagian sisi jauh), pal }.
+PX.mix = (a, b, t) => [0, 1, 2].map((i) => Math.round(a[i] + (b[i] - a[i]) * t));
+
+PX.fromAscii = (rows, legend) => {           // '.' = kosong; legend: { huruf: { col: [r,g,b], far?: true } }
+  const h = rows.length, w = rows[0].length, idx = new Uint8Array(w * h), far = new Uint8Array(w * h), pal = [null], id = {};
+  rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === '.') return;
+    if (!id[ch]) { id[ch] = pal.length; pal.push(legend[ch].col); }
+    idx[y * w + x] = id[ch]; far[y * w + x] = legend[ch].far ? 1 : 0;
+  }));
+  return { w, h, idx, far, pal };
+};
+
+// o: { flip, outline: [r,g,b], shadow: alpha, tint: { col, k }, flash: [r,g,b] }. x,y = pojok kiri-atas, SELALU dibulatkan (snap).
+PX.drawSprite = (buf, s, x, y, o = {}) => {
+  x = Math.round(x); y = Math.round(y);
+  const { w, h, idx, far, pal } = s;
+  const q = (i, j) => (i < 0 || j < 0 || i >= w || j >= h ? -1 : j * w + (o.flip ? w - 1 - i : i));   // flip membalik idx & far sekaligus
+  const solid = (i, j) => { const k = q(i, j); return k >= 0 && idx[k] > 0; };
+  const cells = [];                                          // [i, j, k]; k = -1 -> sel outline
+  for (let j = -1; j <= h; j++) for (let i = -1; i <= w; i++) {   // padding 1 sel agar outline di tepi sprite tidak terpotong
+    if (solid(i, j)) cells.push([i, j, q(i, j)]);
+    else if (o.outline && (solid(i - 1, j) || solid(i + 1, j) || solid(i, j - 1) || solid(i, j + 1))) cells.push([i, j, -1]);
+  }
+  if (o.shadow) for (const [i, j] of cells) buf.px(x + i + 1, y + j + 1, [0, 0, 0], o.shadow);   // 1) bayangan: badan + outline digeser (+1,+1)
+  for (const [i, j, k] of cells) {                           // 2) badan/outline opaque di atas bayangan
+    let c = o.outline;
+    if (k >= 0) {
+      c = pal[idx[k]];
+      if (far[k] && o.tint) c = PX.mix(c, o.tint.col, o.tint.k);   // sisi jauh -> dicampur warna gelap
+      if (o.flash) c = o.flash;                                    // flash hanya mengganti badan, bukan outline
+    }
+    buf.px(x + i, y + j, c, 1);
+  }
+};
+
+/* 14-parallax.js */
+// 14-parallax.js — latar berlapis: tiap lapisan = kanvas kecil yang di-tile mendatar dan digeser dengan faktor berbeda.
+PX.Parallax = class {
+  constructor(layers) { this.layers = layers; }                  // urut terjauh -> terdekat; layer = { cv, w, h, speed, base }
+  draw(ctx, camX, camY, W, H, snap = true) {                     // camX dalam piksel logis; camY ternormalisasi -1..1
+    for (const L of this.layers) {
+      let ox = -((((camX * L.speed) % L.w) + L.w) % L.w);        // modulo ganda: aman untuk kamera negatif
+      let oy = H - L.h + camY * L.h * 0.3 * (0.3 + L.speed);     // lapisan dekat bergeser vertikal lebih jauh
+      if (snap) { ox = Math.round(ox); oy = Math.round(oy); }    // tanpa snap: tepi mengabur dan bergetar
+      ctx.fillStyle = L.base; ctx.fillRect(0, Math.floor(oy + L.h), W, H);   // isi di bawah lapisan agar tak bolong saat kamera bergerak
+      for (let x = ox; x < W; x += L.w) ctx.drawImage(L.cv, x, oy);
+    }
+  }
+};
+
+// Satu lapisan siluet yang MULUS saat di-tile: tinggi permukaan = jumlah sinus berfrekuensi BULAT per lebar tile.
+PX.parallaxLayer = (w, h, { speed, seed, col, edge, amp = 0.5, base = 0.45, trees = 0 }) => {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const c = cv.getContext('2d'), r = PX.rng(seed), ph = [r(), r(), r()].map((v) => v * Math.PI * 2), T = (Math.PI * 2) / w;
+  const ys = (x) => h * (1 - base) - amp * h * 0.25 * (Math.sin(T * x + ph[0]) + 0.6 * Math.sin(T * 2 * x + ph[1]) + 0.35 * Math.sin(T * 5 * x + ph[2]));
+  for (let x = 0; x < w; x++) {
+    const y = Math.round(ys(x));
+    c.fillStyle = col; c.fillRect(x, y, 1, h - y);               // badan
+    c.fillStyle = edge; c.fillRect(x, y, 1, 1);                  // 1 piksel tepi atas lebih terang
+  }
+  for (let i = 0; i < trees; i++) {                              // pohon pinus segitiga; digambar di x-w, x, x+w agar mulus di jahitan tile
+    const tx = Math.round(((i + 0.5 + (PX.hash(i, 7, seed) - 0.5) * 0.7) * w) / trees), th = 6 + Math.round(PX.hash(i, 9, seed) * 6), gy = Math.round(ys((tx + w) % w));
+    c.fillStyle = col;
+    for (let j = 0; j < th; j++) for (const o of [-w, 0, w]) { const half = Math.floor(j / 2.2); c.fillRect(tx - half + o, gy - th + j, half * 2 + 1, 1); }
+  }
+  return { cv, w, h, speed, base: col };
+};
+
 /* 20-pixelize.js */
 // 20-pixelize.js — render halus resolusi tinggi -> grid piksel (tanpa menggambar model piksel manual)
 // Langkah: (1) gambar vektor halus di canvas besar  (2) bagi jadi sel B×B  (3) sel jadi piksel bila
@@ -301,6 +372,71 @@ PX.demos.dither = (host) => {
       d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
     }
     c.putImageData(img, 0, 0);
+  });
+};
+
+/* 33-demo-parallax.js */
+// Demo parallax: 4 lapisan siluet, kamera jalan otomatis; kursor (vertikal) menggeser kamera Y.
+PX.demos.parallax = (host) => {
+  const W = 240, H = 135, cv = PX.canvas(host, W, H, 640, false, 'Gerakkan kursor naik-turun untuk parallax vertikal. Matikan "Kabut palet" untuk melihat kenapa warna lapisan penting.'), c = cv.getContext('2d'), p = PX.pointer(cv);
+  const top = [34, 28, 76], bot = [246, 154, 112], dark = [14, 18, 32];
+  const spec = [
+    { w: 256, h: 74, speed: 0.12, seed: 3, amp: 0.9, base: 0.5, d: 0.45 },
+    { w: 200, h: 60, speed: 0.28, seed: 8, amp: 0.8, base: 0.45, d: 0.62 },
+    { w: 168, h: 46, speed: 0.55, seed: 15, amp: 0.5, base: 0.4, d: 0.8, trees: 9 },
+    { w: 136, h: 32, speed: 0.9, seed: 21, amp: 0.35, base: 0.35, d: 1, trees: 7 },   // lebar tile berbeda-beda -> pola tidak sejajar
+  ];
+  let spd = 30, snap = true, fog = true, par, sky, cam = 0;
+  const build = () => {
+    const b = new PX.Buf(W, H); sky = document.createElement('canvas'); sky.width = W; sky.height = H;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) b.px(x, y, Math.min(1, y / (H * 0.75)) > PX.bayer(x, y) ? bot : top);   // langit: gradien dither
+    b.flush(sky.getContext('2d'));
+    par = new PX.Parallax(spec.map((s) => {
+      const col = PX.mix(fog ? bot : dark, dark, fog ? s.d : 1);                  // kabut = warna lapisan dicampur ke warna langit (dibakar sekali)
+      return PX.parallaxLayer(s.w, s.h, { ...s, col: PX.rgb(col), edge: PX.rgb(PX.mix(col, bot, 0.35)) });
+    }));
+  };
+  build();
+  const ui = PX.ui(host);
+  ui.range('Kecepatan kamera', 0, 120, 5, spd, (v) => (spd = v));
+  ui.check('Snap integer', true, (v) => (snap = v));
+  ui.check('Kabut palet', true, (v) => { fog = v; build(); });
+  PX.loop(host, (dt) => {
+    cam += spd * dt;
+    c.imageSmoothingEnabled = !snap;                                              // snap mati = interpolasi bawaan canvas -> blur
+    c.drawImage(sky, 0, 0);
+    par.draw(c, cam, p.in ? (p.y / H - 0.5) * 2 : 0, W, H, snap);
+  });
+};
+
+/* 34-demo-composite.js */
+// Demo komposit sprite: pahlawan kecil mengikuti kursor. Strip bawah = tahapan. Klik = flash putih.
+PX.demos.composite = (host) => {
+  const W = 128, H = 72, cv = PX.canvas(host, W, H, 640, false, 'Strip bawah, kiri ke kanan: badan saja · +outline · +bayangan · +tint sisi jauh. Klik area atas untuk flash.'), buf = new PX.Buf(W, H), c = cv.getContext('2d'), p = PX.pointer(cv);
+  const hero = PX.fromAscii([
+    '....hhhh....', '...hhhhhh...', '...hsssshh..', '...hsessss..', '...hsssss...', '.....ss.....',
+    '..AAbbbbaa..', '..AAbbbbaa..', '..A.bbbbagg.', '....bbbb.gg.', '....pppp....', '....pppp....',
+    '....pp.pp...', '....pp.pp...', '....ll.ll...', '...lll.lll..',
+  ], {
+    h: { col: [96, 58, 38] }, s: { col: [240, 196, 156] }, e: { col: [30, 24, 40] }, b: { col: [74, 120, 214] }, a: { col: [64, 104, 196] },
+    A: { col: [64, 104, 196], far: true }, p: { col: [60, 64, 104] }, l: { col: [44, 40, 56] }, g: { col: [150, 152, 162] },
+  });
+  const OL = [28, 18, 34], TINT = { col: [18, 22, 64], k: 0.5 }, on = { outline: true, shadow: true, tint: true };
+  let x = W / 2, face = 1, flash = 0;
+  const ui = PX.ui(host);
+  ui.check('Outline', true, (v) => (on.outline = v)); ui.check('Bayangan', true, (v) => (on.shadow = v)); ui.check('Tint sisi jauh', true, (v) => (on.tint = v));
+  PX.loop(host, (dt, t) => {
+    if (p.clicks.splice(0).length) flash = 0.12;
+    const tx = p.in ? p.x : W / 2 + Math.sin(t * 0.8) * 34;
+    if (Math.abs(tx - x) > 0.25) face = tx > x ? 1 : -1;
+    const moving = Math.abs(tx - x) > 0.5;
+    x += (tx - x) * Math.min(1, dt * 6); flash = Math.max(0, flash - dt);      // posisi dunia pecahan; drawSprite yang membulatkan
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) buf.px(i, j, j < 48 ? (((i >> 2) + (j >> 2)) & 1 ? [150, 178, 120] : [140, 168, 112]) : [96, 122, 92], 1);
+    PX.drawSprite(buf, hero, x - hero.w / 2, 46 - hero.h + (moving ? -Math.round(Math.abs(Math.sin(t * 14))) : 0), {
+      flip: face < 0, outline: on.outline ? OL : null, shadow: on.shadow ? 0.28 : 0, tint: on.tint ? TINT : null, flash: flash > 0 ? [255, 255, 255] : null,
+    });
+    [{}, { outline: OL }, { outline: OL, shadow: 0.28 }, { outline: OL, shadow: 0.28, tint: TINT }].forEach((o, i) => PX.drawSprite(buf, hero, 16 + i * 32 - hero.w / 2, 52, o));
+    buf.flush(c);
   });
 };
 

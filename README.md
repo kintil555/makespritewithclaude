@@ -1,6 +1,6 @@
 # Make Sprite With Claude
 
-Blog statis berisi teknik agar Claude (atau AI lain) bisa membuat **sprite pixel art prosedural** yang bagus: render halus → grid piksel, palet + dithering, buffer piksel, sprite sheet, serta efek (tracer, ledakan, lubang, api, bola neutron/pulsar) dan karakter dari persamaan.
+Blog statis berisi teknik agar Claude (atau AI lain) bisa membuat **sprite pixel art prosedural** yang bagus: render halus → grid piksel, palet + dithering, buffer piksel, sprite sheet, komposit sprite (outline/bayangan/flash), parallax berlapis, serta efek (tracer, ledakan, lubang, api, bola neutron/pulsar) dan karakter dari persamaan.
 
 Situs: https://makespritewithclaude.pages.dev/ (Cloudflare Pages: preset None, tanpa build command, output dir kosong).
 

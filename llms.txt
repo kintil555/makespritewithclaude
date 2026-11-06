@@ -10,6 +10,8 @@ Catatan: kode di situs ini adalah JavaScript murni tanpa dependensi, berjalan di
 - [Palet terbatas dan ordered dithering](https://makespritewithclaude.pages.dev/md/dither-palette.md): Shading bola/benda dengan 5–6 warna dan matriks Bayer 4×4 sebagai ganti gradient, supaya tetap terlihat pixel art.
 - [Buffer piksel Uint32 dan aturan integer](https://makespritewithclaude.pages.dev/md/pixel-buffer.md): Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData.
 - [Sprite sheet — grid, pivot, texturing, ekspor anti-halo](https://makespritewithclaude.pages.dev/md/sprite-sheet.md): Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih.
+- [Komposit sprite bertahap — outline, bayangan jatuh, flash, tint sisi jauh](https://makespritewithclaude.pages.dev/md/sprite-composite.md): Satu sprite berindeks diolah dari mask dalam urutan tetap — bayangan, outline, badan — lalu flash putih saat kena hit dan tint untuk bagian sisi jauh, semuanya di grid integer.
+- [Parallax berlapis — kedalaman dari faktor kecepatan](https://makespritewithclaude.pages.dev/md/parallax.md): Latar 3–5 lapisan siluet yang di-tile mulus, digeser dengan faktor kecepatan berbeda, di-snap ke piksel integer, dengan kabut yang dibakar ke palet lapisan, bukan alpha per frame.
 
 ## Efek (VFX)
 

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Parallax berlapis — kedalaman dari faktor kecepatan — Make Sprite With Claude</title>
+<meta name="description" content="Latar 3–5 lapisan siluet yang di-tile mulus, digeser dengan faktor kecepatan berbeda, di-snap ke piksel integer, dengan kabut yang dibakar ke palet lapisan, bukan alpha per frame.">
+<link rel="canonical" href="https://makespritewithclaude.pages.dev/articles/parallax.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://makespritewithclaude.pages.dev/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://makespritewithclaude.pages.dev/md/parallax.md" title="Markdown">
+<meta property="og:title" content="Parallax berlapis — kedalaman dari faktor kecepatan — Make Sprite With Claude"><meta property="og:description" content="Latar 3–5 lapisan siluet yang di-tile mulus, digeser dengan faktor kecepatan berbeda, di-snap ke piksel integer, dengan kabut yang dibakar ke palet lapisan, bukan alpha per frame."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Parallax berlapis — kedalaman dari faktor kecepatan","description":"Latar 3–5 lapisan siluet yang di-tile mulus, digeser dengan faktor kecepatan berbeda, di-snap ke piksel integer, dengan kabut yang dibakar ke palet lapisan, bukan alpha per frame.","inLanguage":"id","url":"https://makespritewithclaude.pages.dev/articles/parallax.html","articleSection":"Teknik Rendering","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<div class="shell">
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#rendering">Teknik Rendering</a></p>
+<h1>Parallax berlapis — kedalaman dari faktor kecepatan</h1><p class="lead">Latar 3–5 lapisan siluet yang di-tile mulus, digeser dengan faktor kecepatan berbeda, di-snap ke piksel integer, dengan kabut yang dibakar ke palet lapisan, bukan alpha per frame.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/parallax.md">md/parallax.md</a></p>
+<h2>Prinsip</h2>
+<p>Kedalaman dibuat dari <strong>perbedaan kecepatan</strong>, bukan dari 3D. Tiap lapisan adalah kanvas kecil beresolusi logis yang di-tile mendatar; lapisan jauh bergeser sedikit, lapisan dekat bergeser hampir sebesar dunia. Pola ini dianalisis dari latar berlapis pada referensi Sprite Fusion (3–5 lapisan, faktor kecil untuk yang jauh, besar untuk yang dekat).</p>
+<ol>
+<li><strong>Offset mendatar.</strong> <code>ox = -(((camX · speed) mod w) + w) mod w</code>. Modulo ganda membuat kamera negatif tetap benar. Tile digambar dari <code>ox</code> sampai melewati lebar layar, tiap <code>w</code> piksel.</li>
+<li><strong>Offset vertikal.</strong> <code>oy = H − h + camY · h · 0.3 · (0.3 + speed)</code> dengan <code>camY</code> ternormalisasi <code>−1..1</code>. Lapisan dekat bergeser lebih jauh, jadi mendongak/menunduk juga terasa dalam.</li>
+<li><strong>Snap integer.</strong> <code>ox</code> dan <code>oy</code> dibulatkan sebelum <code>drawImage</code>. Tanpa snap, canvas menginterpolasi dan tepi siluet mengabur lalu bergetar.</li>
+<li><strong>Tile mulus.</strong> Permukaan dibangun dari jumlah sinus berfrekuensi <strong>bulat</strong> per lebar tile (1, 2, 5), sehingga ujung kiri dan kanan bertemu. Objek (pohon) digambar di <code>x−w</code>, <code>x</code>, <code>x+w</code> agar tidak terpotong di jahitan.</li>
+<li><strong>Kabut lewat palet.</strong> Warna lapisan = campuran warna langit bawah dan warna gelap, makin jauh makin dekat ke langit. Dihitung sekali saat membangun lapisan; tidak ada alpha per frame, jadi palet tetap terbatas.</li>
+<li><strong>Lebar tile berbeda-beda</strong> (256, 200, 168, 136). Lebar yang sama membuat jahitan semua lapisan selalu sejajar dan pola terlihat berulang.</li>
+<li><strong>Isi di bawah lapisan</strong> dengan warna dasarnya, agar tidak ada celah saat kamera naik atau turun.</li>
+</ol>
+<div class="demo" data-demo="parallax"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<h2>Faktor kecepatan</h2>
+<table>
+<thead>
+<tr>
+<th>Lapisan</th>
+<th>Faktor</th>
+<th>Kabut <code>d</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Langit</td>
+<td>0 (statis)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Gunung jauh</td>
+<td>0.1–0.15</td>
+<td>0.45</td>
+</tr>
+<tr>
+<td>Gunung dekat</td>
+<td>0.25–0.3</td>
+<td>0.6</td>
+</tr>
+<tr>
+<td>Pohon/bukit</td>
+<td>0.5</td>
+<td>0.8</td>
+</tr>
+<tr>
+<td>Latar depan</td>
+<td>0.85–0.95</td>
+<td>1</td>
+</tr>
+</tbody></table>
+<p>Referensi memakai angka 0.01–0.16 karena satuan kameranya berbeda; yang penting adalah <strong>urutan dan rasionya</strong>. Faktor di atas 1 membuat lapisan bergerak lebih cepat dari dunia dan terkesan berada di depan karakter.</p>
+<h2>Jebakan</h2>
+<ul>
+<li><strong>Sinus berfrekuensi pecahan</strong> meninggalkan jahitan yang terlihat tiap <code>w</code> piksel.</li>
+<li><strong>Tanpa kabut</strong>, semua lapisan berwarna sama dan menyatu jadi satu bercak; matikan &quot;Kabut palet&quot; di demo untuk melihatnya.</li>
+<li><strong>Lapisan lebih lebar dari layar tidak wajib</strong>, tetapi lapisan lebih sempit dari layar tetap benar selama loop tile berjalan sampai <code>W</code>.</li>
+<li><strong><code>camY</code> dalam piksel</strong> (bukan ternormalisasi) membuat lapisan melompat ratusan piksel. Normalisasi dulu.</li>
+</ul>
+<h2>Kode</h2>
+<details class="code" open><summary>Kode: <code>src/code/14-parallax.js</code></summary><pre><code class="language-js">// 14-parallax.js — latar berlapis: tiap lapisan = kanvas kecil yang di-tile mendatar dan digeser dengan faktor berbeda.
+PX.Parallax = class {
+  constructor(layers) { this.layers = layers; }                  // urut terjauh -&gt; terdekat; layer = { cv, w, h, speed, base }
+  draw(ctx, camX, camY, W, H, snap = true) {                     // camX dalam piksel logis; camY ternormalisasi -1..1
+    for (const L of this.layers) {
+      let ox = -((((camX * L.speed) % L.w) + L.w) % L.w);        // modulo ganda: aman untuk kamera negatif
+      let oy = H - L.h + camY * L.h * 0.3 * (0.3 + L.speed);     // lapisan dekat bergeser vertikal lebih jauh
+      if (snap) { ox = Math.round(ox); oy = Math.round(oy); }    // tanpa snap: tepi mengabur dan bergetar
+      ctx.fillStyle = L.base; ctx.fillRect(0, Math.floor(oy + L.h), W, H);   // isi di bawah lapisan agar tak bolong saat kamera bergerak
+      for (let x = ox; x &lt; W; x += L.w) ctx.drawImage(L.cv, x, oy);
+    }
+  }
+};
+
+// Satu lapisan siluet yang MULUS saat di-tile: tinggi permukaan = jumlah sinus berfrekuensi BULAT per lebar tile.
+PX.parallaxLayer = (w, h, { speed, seed, col, edge, amp = 0.5, base = 0.45, trees = 0 }) =&gt; {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const c = cv.getContext('2d'), r = PX.rng(seed), ph = [r(), r(), r()].map((v) =&gt; v * Math.PI * 2), T = (Math.PI * 2) / w;
+  const ys = (x) =&gt; h * (1 - base) - amp * h * 0.25 * (Math.sin(T * x + ph[0]) + 0.6 * Math.sin(T * 2 * x + ph[1]) + 0.35 * Math.sin(T * 5 * x + ph[2]));
+  for (let x = 0; x &lt; w; x++) {
+    const y = Math.round(ys(x));
+    c.fillStyle = col; c.fillRect(x, y, 1, h - y);               // badan
+    c.fillStyle = edge; c.fillRect(x, y, 1, 1);                  // 1 piksel tepi atas lebih terang
+  }
+  for (let i = 0; i &lt; trees; i++) {                              // pohon pinus segitiga; digambar di x-w, x, x+w agar mulus di jahitan tile
+    const tx = Math.round(((i + 0.5 + (PX.hash(i, 7, seed) - 0.5) * 0.7) * w) / trees), th = 6 + Math.round(PX.hash(i, 9, seed) * 6), gy = Math.round(ys((tx + w) % w));
+    c.fillStyle = col;
+    for (let j = 0; j &lt; th; j++) for (const o of [-w, 0, w]) { const half = Math.floor(j / 2.2); c.fillRect(tx - half + o, gy - th + j, half * 2 + 1, 1); }
+  }
+  return { cv, w, h, speed, base: col };
+};</code></pre></details>
+
+<nav class="pn"><a href="sprite-composite.html">← Komposit sprite bertahap — outline, bayangan jatuh, flash, tint sisi jauh</a><a href="tracer-muzzle.html">Tracer peluru, muzzle flash, dan percikan tumbukan →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+</div>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>

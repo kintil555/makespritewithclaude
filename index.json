@@ -5,7 +5,7 @@
   "categories": {
     "rendering": {
       "title": "Teknik Rendering",
-      "desc": "Dari render halus ke grid piksel, palet, dithering, buffer, sprite sheet."
+      "desc": "Dari render halus ke grid piksel, palet, dithering, buffer, sprite sheet, komposit sprite, parallax."
     },
     "efek": {
       "title": "Efek (VFX)",
@@ -75,6 +75,28 @@
       "markdown": "https://makespritewithclaude.pages.dev/md/sprite-sheet.md",
       "code": [
         "https://makespritewithclaude.pages.dev/src/code/31-demo-sheet.js"
+      ]
+    },
+    {
+      "slug": "sprite-composite",
+      "title": "Komposit sprite bertahap — outline, bayangan jatuh, flash, tint sisi jauh",
+      "category": "rendering",
+      "summary": "Satu sprite berindeks diolah dari mask dalam urutan tetap — bayangan, outline, badan — lalu flash putih saat kena hit dan tint untuk bagian sisi jauh, semuanya di grid integer.",
+      "html": "https://makespritewithclaude.pages.dev/articles/sprite-composite.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/sprite-composite.md",
+      "code": [
+        "https://makespritewithclaude.pages.dev/src/code/13-composite.js"
+      ]
+    },
+    {
+      "slug": "parallax",
+      "title": "Parallax berlapis — kedalaman dari faktor kecepatan",
+      "category": "rendering",
+      "summary": "Latar 3–5 lapisan siluet yang di-tile mulus, digeser dengan faktor kecepatan berbeda, di-snap ke piksel integer, dengan kabut yang dibakar ke palet lapisan, bukan alpha per frame.",
+      "html": "https://makespritewithclaude.pages.dev/articles/parallax.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/parallax.md",
+      "code": [
+        "https://makespritewithclaude.pages.dev/src/code/14-parallax.js"
       ]
     },
     {
