@@ -7,8 +7,15 @@ PX.drawOrb = (b, x, y, ang, R, ramp, spin = 0) => {
     const u = d / L, w = (1 - u) * R * 1.15 + 0.4, al = Math.pow(1 - u, 1.4) * (0.3 + Math.random() * 0.1);
     b.disc(x - ca * d, y - sa * d, w + 1.3, ramp[0], al * 0.5); b.disc(x - ca * d, y - sa * d, w, d < L * 0.4 ? ramp[2] : ramp[1], al);
   }
-  b.disc(x, y, R + 2.6, ramp[1], 0.2); b.disc(x, y, R + 1.5, ramp[2], 0.32);
-  const ox = Math.round(x), oy = Math.round(y), Ri = Math.ceil(R), cs = Math.cos(spin), ss = Math.sin(spin), TC = 0.9, TS = 0.44;   // TC/TS: kemiringan sumbu putar
+  b.add = true; b.disc(x, y, R + 5.2, ramp[0], 0.2); b.disc(x, y, R + 3.8, ramp[1], 0.22); b.disc(x, y, R + 2.5, ramp[2], 0.3); b.add = false;   // glow: halo additif berlapis di BAWAH bola (tidak memutihkan bola)
+  const ox = Math.round(x), oy = Math.round(y), ox0 = ox, oy0 = oy, Ri = Math.ceil(R), cs = Math.cos(spin), ss = Math.sin(spin), TC = 0.9, TS = 0.44;   // TC/TS: kemiringan sumbu putar
+  const Ra = Math.ceil(R + 4.5);                                        // aura luar: lidah biru gelap yang bergerak (berputar + berganti sel) dengan sedikit putih
+  for (let j = -Ra; j <= Ra; j++) for (let i = -Ra; i <= Ra; i++) {
+    const d = Math.hypot(i, j), e = d - R; if (e < -1 || e > 4.2) continue;
+    const cell = Math.floor((Math.atan2(j, i) + spin * 0.55) * 3.4), reach = 1.2 + PX.hash(cell, 7, 63) * 3, fl = PX.hash(cell, Math.floor(e + spin * 0.9), 64);
+    if (e > reach) continue;
+    b.px(ox0 + i, oy0 + j, fl > 0.92 ? ramp[4] : fl > 0.45 ? PX.SPOT[0] : PX.SPOT[1], 0.8 - e * 0.15);
+  }
   for (let j = -Ri; j <= Ri; j++) for (let i = -Ri; i <= Ri; i++) {
     const d2 = i * i + j * j; if (d2 > R * R) continue;
     const nx = i / R, ny = j / R, nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny)), l = Math.max(0, nx * -0.4 + ny * -0.5 + nz * 0.77);
@@ -17,7 +24,7 @@ PX.drawOrb = (b, x, y, ang, R, ramp, spin = 0) => {
     else {                                                              // bercak: putar titik permukaan (spin), miringkan sumbu, ambil noise blok 3D
       const rx = nx * cs + nz * ss, rz = -nx * ss + nz * cs, qy = ny * TC - rz * TS, qz = ny * TS + rz * TC;
       const h = PX.hash(Math.floor(rx * 1.8 + 8), Math.floor(qy * 1.8 + 8), Math.floor(qz * 1.8 + 8) + 31);
-      if (h > 0.8) col = PX.SPOT[1]; else if (h > 0.6) col = PX.SPOT[0];
+      if (h > 0.88) col = PX.SPOT[1]; else if (h > 0.72) col = PX.SPOT[0];
     }
     b.px(ox + i, oy + j, col);
   }
@@ -45,7 +52,7 @@ PX.demos.neutron = (host) => {
         rings.push({ x: o.tx, y: o.ty, t: 0, max: 0.35, r1: 26 }); flashes.push({ x: o.tx, y: o.ty, t: 0, max: 0.22, r: 40, k: 1 }); orbs.splice(i, 1); continue;
       }
       for (let n = 0; n < 2; n++) { const g = o.a + Math.PI + (Math.random() - 0.5) * 0.9, s = 20 + Math.random() * 60; sparks.push({ x: o.x - Math.cos(o.a) * 2, y: o.y - Math.sin(o.a) * 2, vx: Math.cos(g) * s, vy: Math.sin(g) * s, life: 0.15 + Math.random() * 0.3, m: 0.45, ci: 1 + ((Math.random() * 3) | 0) }); }   // percikan jejak
-      PX.drawOrb(buf, o.x, o.y, o.a, 3.3 * (1 + Math.sin(t * 40) * 0.06), ramp, o.t * SPIN); lit.glow(o.x, o.y, 12, ramp[1], 0.22); lit.glow(o.x - Math.cos(o.a) * 7, o.y - Math.sin(o.a) * 7, 9, ramp[1], 0.22);
+      PX.drawOrb(buf, o.x, o.y, o.a, 3.3 * (1 + Math.sin(t * 40) * 0.06), ramp, o.t * SPIN); lit.glow(o.x, o.y, 15, ramp[1], 0.3); lit.glow(o.x - Math.cos(o.a) * 7, o.y - Math.sin(o.a) * 7, 9, ramp[1], 0.22);
     }
     for (let i = blasts.length - 1; i >= 0; i--) { blasts[i].step(dt); blasts[i].draw(buf); blasts[i].light(lit); shake = Math.max(shake, blasts[i].shake); if (blasts[i].done) blasts.splice(i, 1); }
     for (let i = rings.length - 1; i >= 0; i--) {                                      // cincin kejut piksel (muncul di moncong & titik kena)

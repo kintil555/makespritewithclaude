@@ -4,8 +4,8 @@ PX.demos.pulsar = (host) => {
   const W = 128, H = 72, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), img = c.createImageData(W, H), lit = new PX.Light(W, H);
   cv.style.background = '#0a0a16';
   const V = ['#241a66', '#2f3cb4', '#4f7bff', '#8fcbff', '#dff2ff', '#ffffff'].map(PX.hex), CX = W / 2, CY = H / 2, R = 9;
-  const BASE = -0.72, SWING = Math.PI / 8, FREQ = 8.5, SNAP = 1.7;               // sumbu miring, amplitudo 22.5°, ayunan cepat (periode ≈ 0.74 s), SNAP: makin besar makin tajam di ujung
-  const NORM = Math.tanh(SNAP), sparks = [], rings = []; let prevCos = 1;
+  const BASE = -0.72, SWING = Math.PI / 8, FREQ = 8.5, SNAP = 0.9;               // sumbu miring, amplitudo 22.5°, ayunan cepat (periode ≈ 0.74 s), SNAP kecil = gerak halus (mendekati sinus)
+  const NORM = Math.tanh(SNAP), sparks = [], rings = [], NSUB = 5, TAU = 0.5, CT = Math.cos(TAU), ST = Math.sin(TAU); let prevCos = 1, thPrev = null;   // NSUB: sub-langkah interpolasi sudut per frame; TAU: sumbu miring ke arah kamera (untuk medan 3D)
   const SPIN = 10, AXT = 0.35, TW = 64, TH = 32, TEX = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
   for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {                       // bake SEKALI: peta lon/lat (tile di lon). fbm besar + kontras -> bercak gelap & titik panas yang jelas saat berputar
     const f = PX.fbm(x / 8, y / 8, 21, TW / 8, 0, 3), hot = PX.fbm(x / 5, y / 5, 47, TW / 5 | 0, 0, 2);
@@ -31,18 +31,30 @@ PX.demos.pulsar = (host) => {
       const r = R + 2 + u * 44, n = Math.round(r * 5);
       for (let k = 0; k < n; k++) { const g = (k / n) * 6.283; if (PX.hash(k, Math.floor(q.t * 30), 9) < 0.7 - u * 0.5) put(CX + Math.cos(g) * r, CY + Math.sin(g) * r, u < 0.3 ? 3 : u < 0.6 ? 2 : 1); }
     }
+    if (thPrev === null) thPrev = th;                                                // interpolasi: sudut frame lalu -> sekarang dibagi NSUB sub-langkah; sub-langkah lama lebih redup (jejak halus, tanpa loncatan)
+    const SC = [], SS = [], SW_ = []; for (let s = 1; s <= NSUB; s++) { const a = thPrev + ((th - thPrev) * s) / NSUB; SC.push(Math.cos(a)); SS.push(Math.sin(a)); SW_.push(0.5 + (0.5 * s) / NSUB); }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {                        // sinar
-      const dx = x + 0.5 - CX, dy = y + 0.5 - CY, u = Math.abs(dx * ca + dy * sa), v = -dx * sa + dy * ca;
-      if (u < R * 0.8 || u > Lb) continue;
-      const w = 1.5 + u * 0.1, prof = Math.max(0, 1 - Math.abs(v) / w), I = (1 - u / Lb) * Math.pow(prof, 0.8) * (0.85 + 0.15 * Math.sin(u * 0.6 - t * 30));   // denyut kecil mengalir sepanjang sinar
+      const dx = x + 0.5 - CX, dy = y + 0.5 - CY; let I = 0;
+      for (let s = 0; s < NSUB; s++) {
+        const u = Math.abs(dx * SC[s] + dy * SS[s]); if (u < R * 0.8 || u > Lb) continue;
+        const v = -dx * SS[s] + dy * SC[s], w = 1.5 + u * 0.1, prof = Math.max(0, 1 - Math.abs(v) / w), Is = (1 - u / Lb) * Math.pow(prof, 0.8) * (0.85 + 0.15 * Math.sin(u * 0.6 - t * 30)) * SW_[s];   // denyut kecil mengalir sepanjang sinar
+        if (Is > I) I = Is;
+      }
       if (I > PX.bayer(x, y) * 0.9) put(x, y, Math.min(5, Math.floor(I * 6)));
     }
-    [16, 25, 36].forEach((s0, si) => {                                               // garis medan dipol: r = s·cos²λ, ikut berayun; dash mengalir di sepanjang garis
-      const s = s0 * (1 + 0.05 * Math.sin(t * 6 + si)), dir = si % 2 ? -1 : 1;
-      for (let k = -90; k <= 90; k += 1) {
-        const lam = (k * Math.PI) / 180, r = s * Math.cos(lam) ** 2, al = r * Math.sin(lam), pe = r * Math.cos(lam), m = (((k + 90 + dir * t * 70) % 36) + 36) % 36;
-        if (m > 14) continue;
-        for (const side of [-1, 1]) { const px = CX + ca * al - sa * pe * side, py = CY + sa * al + ca * pe * side; if (PX.hash(Math.round(px), Math.round(py), 5) < 0.8) put(px, py, m < 3 ? 4 : m < 7 ? 3 : 2); }
+    const front = [], PXX = -sa, PYY = ca;                                           // medan dipol 3D: tiap garis punya azimut φ mengelilingi sumbu; titik belakang digambar sebelum bola (tertutup), titik depan sesudahnya
+    [15, 22, 31].forEach((s0, si) => {                                               // r = s·cos²λ; posisi = al·sumbu + pe·(cosφ·p + sinφ·q); z>0 = menghadap kamera
+      const s = s0 * (1 + 0.05 * Math.sin(t * 6 + si)), dir = si % 2 ? -1 : 1, NA = 5;
+      for (let a = 0; a < NA; a++) {
+        const phi = (a / NA) * 6.2832 + si * 0.6 + t * 0.9 * dir, cp = Math.cos(phi), sp = Math.sin(phi);   // azimut berputar pelan: garis tampak memutari bola
+        for (let k = -90; k <= 90; k += 0.5) {                                       // langkah 0.5° agar garis menyambung
+          const lam = (k * Math.PI) / 180, r = s * Math.cos(lam) ** 2; if (r < R + 0.6) continue;
+          const al = r * Math.sin(lam), pe = r * Math.cos(lam), m = (((k + 90 + dir * t * 70) % 40) + 40) % 40;   // m: posisi dalam siklus dash (40° per siklus)
+          const x = CX + al * ca * CT + pe * (cp * PXX - sp * ST * ca), y = CY + al * sa * CT + pe * (cp * PYY - sp * ST * sa), z = al * ST + pe * sp * CT;
+          const head = m < 4 ? 4 : m < 14 ? 3 : m < 26 ? 2 : -1;                      // kepala terang -> ekor -> celah pendek antar dash
+          if (z > 0) { if (head >= 0) front.push([x, y, head]); if (m < 0.5) lit.glow(x, y, 4, V[3], 0.45); }   // inti (kepala) dash depan diberi glow
+          else if (head >= 0) put(x, y, head > 2 ? 2 : 1);                             // sisi belakang: lebih gelap, nanti tertutup bola
+        }
       }
     });
     for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) {                    // bola
@@ -53,6 +65,8 @@ PX.demos.pulsar = (host) => {
       const k = PX.clamp(0.08 + 0.5 * l + (TEX[ty * TW + tx] - 0.5) * 0.6 + (r2 > 0.75 ? 0.08 : 0), 0, 1);   // cahaya tetap, tekstur berputar
       put(X, Y, PX.tone(k, X, Y, 6, 0.3));
     }
+    for (const f of front) put(f[0], f[1], f[2]);                                    // garis medan sisi depan menimpa bola
+    thPrev = th;
     for (let i = sparks.length - 1; i >= 0; i--) {                                   // percikan dari ujung sinar
       const s = sparks[i]; s.life -= dt; if (s.life <= 0) { sparks.splice(i, 1); continue; }
       s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 1 - 1.5 * dt; s.vy *= 1 - 1.5 * dt; put(s.x, s.y, s.life > s.m * 0.6 ? 5 : s.life > s.m * 0.3 ? 3 : 2);
