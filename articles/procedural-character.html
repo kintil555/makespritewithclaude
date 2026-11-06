@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Karakter prosedural dari persamaan — Make Sprite With Claude</title>
+<meta name="description" content="Setiap piksel menanyakan koordinat lokal badan; bentuk berasal dari persamaan elips/kapsul, wajah dari bitmap string, outline dari siluet.">
+<link rel="canonical" href="https://kintil555.github.io/makespritewithclaude/articles/procedural-character.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://kintil555.github.io/makespritewithclaude/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://kintil555.github.io/makespritewithclaude/md/procedural-character.md" title="Markdown">
+<meta property="og:title" content="Karakter prosedural dari persamaan — Make Sprite With Claude"><meta property="og:description" content="Setiap piksel menanyakan koordinat lokal badan; bentuk berasal dari persamaan elips/kapsul, wajah dari bitmap string, outline dari siluet."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Karakter prosedural dari persamaan","description":"Setiap piksel menanyakan koordinat lokal badan; bentuk berasal dari persamaan elips/kapsul, wajah dari bitmap string, outline dari siluet.","inLanguage":"id","url":"https://kintil555.github.io/makespritewithclaude/articles/procedural-character.html","articleSection":"Karakter Prosedural","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#karakter">Karakter Prosedural</a></p>
+<h1>Karakter prosedural dari persamaan</h1><p class="lead">Setiap piksel menanyakan koordinat lokal badan; bentuk berasal dari persamaan elips/kapsul, wajah dari bitmap string, outline dari siluet.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/procedural-character.md">md/procedural-character.md</a></p>
+<h2>Pendekatan &quot;per-piksel query&quot;</h2>
+<p>Alih-alih menaruh piksel satu per satu, untuk tiap piksel layar:</p>
+<ol>
+<li>Ubah ke <strong>koordinat lokal</strong> <code>(f, u)</code> = (maju, atas) dengan rotasi miring terhadap titik kaki. Rotasi memakai pemetaan <strong>terbalik</strong>, jadi tidak ada lubang.</li>
+<li>Uji bentuk dengan persamaan: kapsul (jarak titik ke segmen ≤ r) untuk anggota badan, superellipse <code>|f/rf|ⁿ + |u/ru|ⁿ ≤ 1</code> untuk kepala/badan (<code>n=2</code> elips, <code>n=3</code> kotak membulat).</li>
+<li>Urutan tulis = urutan lapisan: anggota badan <strong>jauh</strong> (tone gelap) → torso → anggota <strong>dekat</strong> → kepala.</li>
+<li>Shading dari persamaan sendiri: nilai superellipse &gt; 0.78 = tepi (shade); bagian kiri-atas = highlight.</li>
+<li>Wajah: <strong>bitmap string</strong> (<code>&#39;.##...##.&#39;</code>) dipetakan terbalik ke koordinat lokal; kedip = lewati bitmap.</li>
+<li>Setelah semua indeks palet terisi: kosong yang bertetangga dengan terisi → outline.</li>
+</ol>
+<p>Keuntungan: ukuran dan proporsi parametrik; pose (swing, tilt, bob) cukup mengubah angka; AI mudah memodifikasinya.</p>
+<div class="demo" data-demo="char"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<p>Gerakkan mouse untuk memiringkan robo.</p>
+<h2>Kode</h2>
+<details class="code" open><summary>Kode: <code>src/code/46-demo-char.js</code></summary><pre><code class="language-js">// Karakter prosedural per-piksel (gaya rig Sprite Fusion): setiap piksel di-&quot;query&quot; ke koordinat lokal badan (f=maju, u=atas).
+// Bentuk = persamaan (ellipse/kapsul), bitmap string untuk wajah, tone near/far untuk anggota badan, outline dari siluet.
+PX.demos.char = (host) =&gt; {
+  const N = 64, cv = PX.canvas(host, N, N, 384, false, 'Robo — digambar dari persamaan'), c = cv.getContext('2d'), img = c.createImageData(N, N), p = PX.pointer(cv);
+  const PAL = ['#00000000', '#1c1530', '#7c8cff', '#4552c4', '#b8c2ff', '#2f3786', '#8ff3ff', '#ff8a5c', '#ffd0b8'].map((h) =&gt; (h.length &gt; 7 ? [0, 0, 0, 0] : [...PX.hex(h), 255]));
+  const [E, OL, BASE, SHADE, LIGHT, FAR, EYE, ANT, ANTL] = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  const FACE = ['.##...##.', '####.####', '####.####', '.##...##.'];                       // bitmap mata, '#'=menyala
+  const cap = (f, u, a, b, r) =&gt; { const abx = b[0] - a[0], aby = b[1] - a[1], t = PX.clamp(((f - a[0]) * abx + (u - a[1]) * aby) / (abx * abx + aby * aby), 0, 1); return Math.hypot(f - a[0] - abx * t, u - a[1] - aby * t) &lt;= r; };
+  const sup = (f, u, cf, cu, rf, ru, n) =&gt; Math.pow(Math.abs((f - cf) / rf), n) + Math.pow(Math.abs((u - cu) / ru), n);   // superellipse: n=2 elips, n=3 kotak membulat
+  PX.loop(host, (dt, t) =&gt; {
+    const lean = p.in ? PX.clamp((p.x - N / 2) / N, -0.5, 0.5) * 0.6 : Math.sin(t * 0.7) * 0.12, ca = Math.cos(lean), sa = Math.sin(lean), sw = Math.sin(t * 6) * 4.5, blink = (t % 3) &lt; 0.12, pulse = 0.5 + 0.5 * Math.sin(t * 5);
+    const idx = new Uint8Array(N * N), OX = N / 2, OY = N - 8;
+    for (let y = 0; y &lt; N; y++) for (let x = 0; x &lt; N; x++) {
+      const dx = x + 0.5 - OX, dy = OY - (y + 0.5), f = dx * ca - dy * sa, u = dx * sa + dy * ca;     // koordinat lokal (miring terhadap kaki)
+      let v = E;
+      if (cap(f, u, [-3.5, 13], [-3.5 - sw, 2], 2.4)) v = FAR;                                      // kaki jauh
+      if (cap(f, u, [-8, 28], [-8 + sw, 19], 2)) v = FAR;                                           // lengan jauh
+      const tm = sup(f, u, 0, 22, 8.5, 8.5, 3);
+      if (tm &lt;= 1) v = tm &gt; 0.62 || u &lt; 15 ? SHADE : f &lt; -2 &amp;&amp; u &gt; 24 ? LIGHT : BASE;               // torso
+      if (cap(f, u, [3.5, 13], [3.5 + sw, 2], 2.4)) v = u &lt; 5 ? SHADE : BASE;                      // kaki dekat
+      if (cap(f, u, [8, 28], [8 - sw, 19], 2)) v = BASE;                                            // lengan dekat
+      if (cap(f, u, [0, 44], [0, 51], 0.7)) v = SHADE;                                              // antena
+      if (Math.hypot(f, u - 52.5) &lt;= 2) v = pulse &gt; 0.5 ? ANTL : ANT;
+      const hm = sup(f, u, 0, 38, 11, 8, 3);
+      if (hm &lt;= 1) {                                                                                // kepala
+        v = hm &gt; 0.78 ? SHADE : f &lt; -3 &amp;&amp; u &gt; 41 &amp;&amp; hm &lt; 0.55 ? LIGHT : BASE;
+        if (Math.abs(f) &lt; 8.5 &amp;&amp; u &gt; 34 &amp;&amp; u &lt; 42) v = OL;                                          // visor gelap
+        const bi = Math.floor(f + 4.5), bj = Math.floor(40 - u);                                    // bitmap mata (mapping terbalik = tanpa lubang)
+        if (!blink &amp;&amp; bj &gt;= 0 &amp;&amp; bj &lt; 4 &amp;&amp; bi &gt;= 0 &amp;&amp; bi &lt; 9 &amp;&amp; FACE[bj][bi] === '#') v = EYE;
+      }
+      idx[y * N + x] = v;
+    }
+    for (let y = 0; y &lt; N; y++) for (let x = 0; x &lt; N; x++) {                                         // outline 1 piksel dari siluet
+      const i = y * N + x; let v = idx[i];
+      if (!v &amp;&amp; ((x &gt; 0 &amp;&amp; idx[i - 1]) || (x &lt; N - 1 &amp;&amp; idx[i + 1]) || (y &gt; 0 &amp;&amp; idx[i - N]) || (y &lt; N - 1 &amp;&amp; idx[i + N]))) v = OL;
+      const col = PAL[v]; img.data.set(v ? [...PAL[v]] : [0, 0, 0, 0], i * 4);
+    }
+    c.putImageData(img, 0, 0);
+  });
+};</code></pre></details>
+
+<nav class="pn"><a href="neutron-psr.html">← Bola neutron dan pulsar (PSR)</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>

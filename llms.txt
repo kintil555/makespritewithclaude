@@ -1,0 +1,34 @@
+# Make Sprite With Claude
+
+> Teknik membuat sprite pixel art prosedural yang bagus — ditulis agar mudah dibaca dan ditiru oleh AI. Semua sprite dibuat secara prosedural (kode, bukan gambar manual). Bahasa: Indonesia.
+
+Catatan: kode di situs ini adalah JavaScript murni tanpa dependensi, berjalan di browser. Baca llms-full.txt untuk seluruh isi sekaligus.
+
+## Teknik Rendering
+
+- [Render halus lalu turunkan ke grid piksel](https://kintil555.github.io/makespritewithclaude/md/hires-to-pixel.md): Teknik inti — gambar karakter sebagai vektor halus beresolusi tinggi, lalu ubah per sel menjadi piksel ber-shading dan ber-outline.
+- [Palet terbatas dan ordered dithering](https://kintil555.github.io/makespritewithclaude/md/dither-palette.md): Shading bola/benda dengan 5–6 warna dan matriks Bayer 4×4 sebagai ganti gradient, supaya tetap terlihat pixel art.
+- [Buffer piksel Uint32 dan aturan integer](https://kintil555.github.io/makespritewithclaude/md/pixel-buffer.md): Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData.
+- [Sprite sheet — grid, pivot, texturing, ekspor anti-halo](https://kintil555.github.io/makespritewithclaude/md/sprite-sheet.md): Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih.
+
+## Efek (VFX)
+
+- [Tracer peluru, muzzle flash, dan percikan tumbukan](https://kintil555.github.io/makespritewithclaude/md/tracer-muzzle.md): Jejak peluru 3 tingkat (inti 1px, pasangan piksel, ekor gelap), kilatan moncong dari sinar acak, dan percikan berpantul.
+- [Ledakan prosedural berlapis](https://kintil555.github.io/makespritewithclaude/md/explosion.md): Kilat putih, gumpalan bola api 5 lapis, sinar radiasi, gelombang kejut bergelombang, partikel, dan asap — dengan palet api atau neutron.
+- [Lubang, kawah, dan gosong pada dinding](https://kintil555.github.io/makespritewithclaude/md/crater-hole.md): Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.
+- [Api dan asap dari partikel disc berlapis](https://kintil555.github.io/makespritewithclaude/md/fire.md): Ramp 9 warna, partikel membesar saat menua, inti bergeser ke atas, highlight kecil, glow additive, dan asap.
+- [Bola neutron dan pulsar (PSR)](https://kintil555.github.io/makespritewithclaude/md/neutron-psr.md): Proyektil bola neutron biru dengan jejak, ledakan Cherenkov, dan pulsar ber-sinar menyapu dengan garis medan dipol.
+
+## Karakter Prosedural
+
+- [Karakter prosedural dari persamaan](https://kintil555.github.io/makespritewithclaude/md/procedural-character.md): Setiap piksel menanyakan koordinat lokal badan; bentuk berasal dari persamaan elips/kapsul, wajah dari bitmap string, outline dari siluet.
+
+## Panduan untuk AI
+
+- [Panduan prompt untuk AI — sprite pixel yang benar sejak percobaan pertama](https://kintil555.github.io/makespritewithclaude/md/ai-prompt-playbook.md): Template spesifikasi, aturan ketat, urutan kerja, dan checklist verifikasi agar Claude atau AI lain menghasilkan sprite pixel prosedural yang tajam dan konsisten.
+
+## Optional
+
+- [llms-full.txt](https://kintil555.github.io/makespritewithclaude/llms-full.txt): seluruh artikel + kode
+- [index.json](https://kintil555.github.io/makespritewithclaude/index.json): metadata
+- [Repositori](https://github.com/kintil555/makespritewithclaude): sumber

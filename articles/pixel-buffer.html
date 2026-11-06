@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Buffer piksel Uint32 dan aturan integer — Make Sprite With Claude</title>
+<meta name="description" content="Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData.">
+<link rel="canonical" href="https://kintil555.github.io/makespritewithclaude/articles/pixel-buffer.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://kintil555.github.io/makespritewithclaude/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://kintil555.github.io/makespritewithclaude/md/pixel-buffer.md" title="Markdown">
+<meta property="og:title" content="Buffer piksel Uint32 dan aturan integer — Make Sprite With Claude"><meta property="og:description" content="Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Buffer piksel Uint32 dan aturan integer","description":"Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData.","inLanguage":"id","url":"https://kintil555.github.io/makespritewithclaude/articles/pixel-buffer.html","articleSection":"Teknik Rendering","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#rendering">Teknik Rendering</a></p>
+<h1>Buffer piksel Uint32 dan aturan integer</h1><p class="lead">Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/pixel-buffer.md">md/pixel-buffer.md</a></p>
+<h2>Mengapa</h2>
+<p>Efek (api, ledakan, partikel) berarti ratusan lingkaran per frame. Memanggil <code>fillRect(x,y,1,1)</code> per piksel mahal dan <code>arc()</code> menghasilkan anti-alias. Solusi: tulis langsung ke <code>Uint32Array</code> yang berbagi memori dengan <code>ImageData</code>, lalu <code>putImageData</code> <strong>sekali</strong> per frame.</p>
+<h2>Aturan canvas piksel</h2>
+<ul>
+<li>Canvas dibuat kecil (mis. 160×90) dan <strong>diperbesar dengan CSS</strong> memakai <code>image-rendering: pixelated</code>.</li>
+<li>Semua koordinat digambar di-<code>Math.round</code> sebelum menyentuh buffer.</li>
+<li>Lingkaran = <code>x*x + y*y &lt;= r*r</code> per baris, bukan <code>arc()</code>.</li>
+<li>Glow = disc ber-alpha atau <strong>dither disc</strong> (kepadatan piksel turun ke tepi), bukan <code>createRadialGradient</code>.</li>
+<li>Mode additive (<code>add=true</code>) untuk cahaya; alpha biasa untuk asap.</li>
+</ul>
+<h2>Kode</h2>
+<p><code>PX.Buf</code> dipakai oleh demo api, ledakan, dan bola neutron:</p>
+<details class="code" open><summary>Kode: <code>src/code/10-buf.js</code></summary><pre><code class="language-js">// 10-buf.js — PX.Buf: buffer piksel Uint32 + 1x putImageData per frame.
+// Tanpa panggilan canvas per piksel; koordinat selalu integer; mendukung alpha &amp; additive.
+// (Asumsi little-endian: urutan byte RGBA -&gt; Uint32 ABGR, berlaku di semua browser utama.)
+PX.Buf = class {
+  constructor(w, h) {
+    this.w = w; this.h = h;
+    this.img = new ImageData(w, h);
+    this.d = new Uint32Array(this.img.data.buffer);
+    this.add = false;                       // true = pencampuran additive (cahaya)
+  }
+  clear() { this.d.fill(0); }
+  px(x, y, c, a = 1) {                      // c = [r,g,b], a = 0..1
+    x = Math.round(x); y = Math.round(y);
+    if (x &lt; 0 || y &lt; 0 || x &gt;= this.w || y &gt;= this.h || a &lt;= 0) return;
+    const i = y * this.w + x, p = this.d[i], pa = (p &gt;&gt;&gt; 24) / 255;
+    if (a &gt;= 0.998 &amp;&amp; !this.add) { this.d[i] = (0xff000000 | (c[2] &lt;&lt; 16) | (c[1] &lt;&lt; 8) | c[0]) &gt;&gt;&gt; 0; return; }
+    let r, g, b, A;
+    if (this.add) {
+      A = Math.min(1, pa + a);
+      r = Math.min(255, (p &amp; 255) * pa + c[0] * a); g = Math.min(255, ((p &gt;&gt;&gt; 8) &amp; 255) * pa + c[1] * a); b = Math.min(255, ((p &gt;&gt;&gt; 16) &amp; 255) * pa + c[2] * a);
+      r /= A; g /= A; b /= A;
+    } else {
+      A = a + pa * (1 - a); const k = pa * (1 - a);
+      r = ((p &amp; 255) * k + c[0] * a) / A; g = (((p &gt;&gt;&gt; 8) &amp; 255) * k + c[1] * a) / A; b = (((p &gt;&gt;&gt; 16) &amp; 255) * k + c[2] * a) / A;
+    }
+    this.d[i] = (((A * 255 + 0.5) | 0) &lt;&lt; 24 | ((b + 0.5) | 0) &lt;&lt; 16 | ((g + 0.5) | 0) &lt;&lt; 8 | ((r + 0.5) | 0)) &gt;&gt;&gt; 0;
+  }
+  disc(cx, cy, r, c, a = 1) {               // lingkaran piksel: xx*xx+yy*yy &lt;= r*r
+    if (r &lt; 0.5 || a &lt;= 0.01) return;
+    cx = Math.round(cx); cy = Math.round(cy);
+    const R = Math.ceil(r), r2 = r * r;
+    for (let y = -R; y &lt;= R; y++) for (let x = -R; x &lt;= R; x++) if (x * x + y * y &lt;= r2) this.px(cx + x, cy + y, c, a);
+  }
+  ditherDisc(cx, cy, r, c, a = 1) {         // glow tanpa gradient: kepadatan piksel turun ke tepi (Bayer)
+    cx = Math.round(cx); cy = Math.round(cy);
+    const R = Math.ceil(r);
+    for (let y = -R; y &lt;= R; y++) for (let x = -R; x &lt;= R; x++) {
+      const d = Math.hypot(x, y) / r;
+      if (d &lt;= 1 &amp;&amp; (1 - d) * a &gt; PX.bayer(cx + x, cy + y)) this.px(cx + x, cy + y, c, 1);
+    }
+  }
+  flush(ctx) { ctx.putImageData(this.img, 0, 0); }
+};</code></pre></details>
+<p>Contoh pemakaian:</p>
+<pre><code class="language-js">const buf = new PX.Buf(160, 90);
+function frame() {
+  buf.clear();
+  buf.disc(80, 45, 6, [255, 138, 42]);           // disc solid
+  buf.add = true; buf.disc(80, 45, 12, [255, 200, 90], 0.06); buf.add = false; // glow
+  buf.flush(ctx);                                // 1x putImageData
+}
+</code></pre>
+
+<nav class="pn"><a href="dither-palette.html">← Palet terbatas dan ordered dithering</a><a href="sprite-sheet.html">Sprite sheet — grid, pivot, texturing, ekspor anti-halo →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>

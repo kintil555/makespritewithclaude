@@ -1,0 +1,30 @@
+:root{--bg:#14121c;--panel:#1d1a29;--line:#2f2a42;--fg:#ece8f5;--mut:#a39fb8;--acc:#ff8a2a;--acc2:#8f7bff;--code:#0e0c14}
+@media (prefers-color-scheme:light){:root{--bg:#faf8f3;--panel:#fff;--line:#e3ddd0;--fg:#1f1b2b;--mut:#625d73;--acc:#c9560d;--acc2:#5a45d6;--code:#f2eee4}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--acc2)}a:hover{color:var(--acc)}
+h1,h2,h3,.brand,.cards strong{font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;line-height:1.25;letter-spacing:-.01em}
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:14px 16px;max-width:980px;margin:0 auto}
+.top nav{display:flex;gap:16px;flex-wrap:wrap}.top nav a{color:var(--mut);text-decoration:none}.top nav a:hover{color:var(--acc)}
+.brand{display:flex;gap:10px;align-items:center;color:var(--fg);text-decoration:none;font-weight:700}
+.logo{width:16px;height:16px;background:var(--acc);box-shadow:4px 4px 0 var(--acc2);image-rendering:pixelated}
+main{max-width:980px;margin:0 auto;padding:8px 16px 48px}
+article{max-width:760px}
+h1{font-size:clamp(1.6rem,4vw,2.3rem);margin:.4em 0 .3em}h2{font-size:1.4rem;margin:2em 0 .5em;border-bottom:1px solid var(--line);padding-bottom:.3em}h3{font-size:1.1rem;margin:1.5em 0 .4em}
+.lead{color:var(--mut);font-size:1.1rem}.meta,.crumb{font-size:.9rem;color:var(--mut)}.crumb a{text-decoration:none}
+code{font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;font-size:.9em;background:var(--code);padding:.1em .35em;border-radius:3px}
+pre{background:var(--code);border:1px solid var(--line);border-radius:4px;padding:12px 14px;overflow-x:auto;line-height:1.5;margin:0}pre code{background:none;padding:0;font-size:.82rem}
+details.code{position:relative;margin:1.2em 0;border:1px solid var(--line);border-radius:4px;background:var(--panel)}details.code>summary{cursor:pointer;padding:8px 12px;font-size:.9rem;color:var(--mut)}details.code pre{border:0;border-top:1px solid var(--line);max-height:520px}
+.copy{position:absolute;top:6px;right:8px;font:inherit;font-size:.8rem;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:2px 8px;cursor:pointer}
+table{border-collapse:collapse;width:100%;font-size:.92rem;margin:1em 0;display:block;overflow-x:auto}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--panel)}
+blockquote{margin:1em 0;padding:.4em 1em;border-left:4px solid var(--acc);background:var(--panel);color:var(--mut)}
+.demo{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;margin:1.2em 0;padding:12px;background:var(--panel);border:1px solid var(--line);border-radius:4px}
+.demo figure{margin:0}.demo figcaption{font-size:.8rem;color:var(--mut);margin-top:4px}.demo canvas{display:block;background:#14121c;border:1px solid var(--line)}
+.ctl{display:flex;flex-wrap:wrap;gap:12px;width:100%;font-size:.88rem;color:var(--mut)}.ctl select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:3px}
+.info{font-size:.78rem;max-height:200px;margin:0}.nojs{margin:0;color:var(--mut)}.demo.live .nojs{display:none}
+.hero{padding:24px 0 8px}.ai{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--acc2);border-radius:4px;padding:4px 18px 10px;margin:24px 0}.ai h2{border:0;margin-top:.8em}
+.cards{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.cards a{display:block;height:100%;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--fg)}.cards a:hover{border-color:var(--acc)}.cards strong{display:block;margin-bottom:4px}.cards span{color:var(--mut);font-size:.9rem}
+.pn{display:flex;justify-content:space-between;gap:16px;margin-top:40px;padding-top:16px;border-top:1px solid var(--line)}
+footer{max-width:980px;margin:0 auto;padding:24px 16px 40px;color:var(--mut);font-size:.85rem;border-top:1px solid var(--line)}

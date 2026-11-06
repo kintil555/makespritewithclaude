@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprite sheet — grid, pivot, texturing, ekspor anti-halo — Make Sprite With Claude</title>
+<meta name="description" content="Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih.">
+<link rel="canonical" href="https://kintil555.github.io/makespritewithclaude/articles/sprite-sheet.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://kintil555.github.io/makespritewithclaude/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://kintil555.github.io/makespritewithclaude/md/sprite-sheet.md" title="Markdown">
+<meta property="og:title" content="Sprite sheet — grid, pivot, texturing, ekspor anti-halo — Make Sprite With Claude"><meta property="og:description" content="Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Sprite sheet — grid, pivot, texturing, ekspor anti-halo","description":"Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih.","inLanguage":"id","url":"https://kintil555.github.io/makespritewithclaude/articles/sprite-sheet.html","articleSection":"Teknik Rendering","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#rendering">Teknik Rendering</a></p>
+<h1>Sprite sheet — grid, pivot, texturing, ekspor anti-halo</h1><p class="lead">Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/sprite-sheet.md">md/sprite-sheet.md</a></p>
+<p>Panduan ini menjawab spesifikasi umum: <em>frame tunggal 32×32, animasi Walk 6 frame, JS Canvas + CSS, gaya retro pixel art, padding 1px, pivot bottom-center.</em> Ganti angka sesuai proyek.</p>
+<h2>1. Skema koordinat matriks grid</h2>
+<p>Atlas satu baris, <code>F</code> frame, ukuran frame <code>FR</code>, padding <code>P</code> di <strong>semua</strong> sisi frame:</p>
+<pre><code>lebar atlas  = F·FR + (F+1)·P
+tinggi atlas = FR + 2·P
+frame i: x = P + i·(FR+P),  y = P,  w = h = FR
+</code></pre>
+<p>Untuk <code>F=6, FR=32, P=1</code>: atlas <strong>199×34</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>frame</th>
+<th>x</th>
+<th>y</th>
+<th>w</th>
+<th>h</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+<td>32</td>
+<td>32</td>
+</tr>
+<tr>
+<td>1</td>
+<td>34</td>
+<td>1</td>
+<td>32</td>
+<td>32</td>
+</tr>
+<tr>
+<td>2</td>
+<td>67</td>
+<td>1</td>
+<td>32</td>
+<td>32</td>
+</tr>
+<tr>
+<td>3</td>
+<td>100</td>
+<td>1</td>
+<td>32</td>
+<td>32</td>
+</tr>
+<tr>
+<td>4</td>
+<td>133</td>
+<td>1</td>
+<td>32</td>
+<td>32</td>
+</tr>
+<tr>
+<td>5</td>
+<td>166</td>
+<td>1</td>
+<td>32</td>
+<td>32</td>
+</tr>
+</tbody></table>
+<p><strong>Pivot / anchor:</strong> titik kaki di <code>(FR/2, FR-4) = (16, 28)</code> pada setiap frame. Saat menggambar: <code>dx = round(posX) - 16</code>, <code>dy = round(posY) - 28</code>. Karena pivot sama di tiap frame, karakter tidak &quot;melompat&quot;.</p>
+<p><strong>Aturan integer:</strong> semua argumen <code>drawImage</code> (sx, sy, sw, sh, dx, dy) harus integer. Posisi dunia boleh desimal, tetapi dibulatkan <strong>hanya saat render</strong>.</p>
+<div class="demo" data-demo="sheet"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<h2>2. Kode implementasi</h2>
+<h3>JS Canvas</h3>
+<details class="code" open><summary>Kode: <code>src/code/31-demo-sheet.js</code></summary><pre><code class="language-js">// Sprite sheet prosedural: bake N frame -&gt; 1 atlas dengan padding 1px, pivot bottom-center, posisi integer.
+PX.bakeSheet = (frames = 6, FR = 32, pad = 1) =&gt; {
+  const hr = document.createElement('canvas'); hr.width = hr.height = FR * 4;          // render halus 4× lebih besar
+  const sheet = document.createElement('canvas');
+  sheet.width = frames * FR + (frames + 1) * pad; sheet.height = FR + 2 * pad;           // pad di semua sisi
+  const sc = sheet.getContext('2d'), rects = [];
+  for (let f = 0; f &lt; frames; f++) {
+    PX.stickman(hr.getContext('2d'), (f / frames) * Math.PI * 2 / 6, hr.width);          // 1 siklus jalan penuh
+    const x = pad + f * (FR + pad), y = pad;
+    sc.putImageData(PX.pixelize(hr, FR), x, y);                                          // integer, tanpa skala
+    rects.push({ x, y, w: FR, h: FR });
+  }
+  return { canvas: sheet, rects, FR, pad, pivot: { x: FR / 2, y: 28 } };                 // pivot = garis tanah (kaki)
+};
+
+PX.demos.sheet = (host) =&gt; {
+  const sh = PX.bakeSheet(6, 32, 1), W = 192, H = 64, GY = 56;
+  const view = PX.canvas(host, W, H, 576, false, 'Animasi: drawImage integer, pivot di kaki');
+  const atlas = PX.canvas(host, sh.canvas.width, sh.canvas.height, sh.canvas.width * 3, false, 'Atlas (6 frame, pad 1px)');
+  const info = document.createElement('pre'); info.className = 'info';
+  info.textContent = sh.rects.map((r, i) =&gt; `frame ${i}: x=${r.x} y=${r.y} w=${r.w} h=${r.h}`).join('\n') + `\npivot: (${sh.pivot.x}, ${sh.pivot.y})`;
+  host.appendChild(info);
+  let grid = true;
+  PX.ui(host).check('Tampilkan grid', true, (v) =&gt; (grid = v));
+  const vc = view.getContext('2d'), ac = atlas.getContext('2d');
+  vc.imageSmoothingEnabled = ac.imageSmoothingEnabled = false;
+  PX.loop(host, (dt, t) =&gt; {
+    vc.clearRect(0, 0, W, H); vc.fillStyle = '#2a2a3c'; vc.fillRect(0, GY, W, H - GY);
+    const f = Math.floor(t * 10) % 6, r = sh.rects[f], x = Math.round(((t * 36) % (W + 32)) - 16);
+    vc.drawImage(sh.canvas, r.x, r.y, r.w, r.h, x - sh.pivot.x, GY - sh.pivot.y, r.w, r.h);   // semua argumen integer
+    ac.clearRect(0, 0, atlas.width, atlas.height); ac.drawImage(sh.canvas, 0, 0);
+    if (grid) { ac.fillStyle = 'rgba(255,0,200,.55)'; sh.rects.forEach((q, i) =&gt; { ac.fillRect(q.x - 1, q.y - 1, q.w + 2, 1); ac.fillRect(q.x - 1, q.y + q.h, q.w + 2, 1); ac.fillRect(q.x - 1, q.y - 1, 1, q.h + 2); ac.fillRect(q.x + q.w, q.y - 1, 1, q.h + 2); }); }
+    ac.fillStyle = '#0f0'; ac.fillRect(sh.rects[f].x + sh.pivot.x, sh.rects[f].y + sh.pivot.y, 1, 1);
+  });
+};</code></pre></details>
+<h3>CSS sprite (alternatif tanpa canvas)</h3>
+<pre><code class="language-css">.hero {
+  width: 32px; height: 32px;                 /* ukuran 1 frame */
+  background: url(walk.png) -1px -1px;       /* offset padding */
+  image-rendering: pixelated;
+  transform: scale(3); transform-origin: bottom center;  /* skala bilangan bulat */
+  animation: walk .6s steps(6) infinite;
+}
+@keyframes walk { to { background-position-x: -199px; } }  /* -1 - 6·33 */
+</code></pre>
+<p><code>steps(6)</code> melompat 33px per langkah (32 + 1 padding), jadi tiap langkah tepat di frame berikutnya.</p>
+<h2>3. Texturing dan optimasi aset</h2>
+<ul>
+<li><strong>Palet</strong>: 16–32 warna total. Tiap material 4–6 warna (lihat <a href="dither-palette.html">dither &amp; palet</a>). Hindari hitam murni; outline pakai warna sangat gelap bergeser hue.</li>
+<li><strong>Shading</strong>: 1 sumber cahaya tetap (kiri-atas). Highlight di tepi atas, shade di tepi bawah, outline 1px, dither hanya di area luas. Teknik ini otomatis dihasilkan oleh <a href="hires-to-pixel.html">pixelize</a>.</li>
+<li><strong>Format</strong>: PNG indexed (PNG-8) — kecil dan palet tepat. Kompres lossless dengan <code>oxipng -o max</code> atau <code>pngquant --nofs --quality 100</code>. Jangan JPEG. WebP lossless boleh; hindari WebP/AVIF lossy karena menodai piksel.</li>
+<li><strong>Properti render browser</strong>:<pre><code class="language-css">canvas, img.sprite { image-rendering: pixelated; image-rendering: crisp-edges; } /* fallback Firefox lama */
+</code></pre>
+<pre><code class="language-js">ctx.imageSmoothingEnabled = false;
+</code></pre>
+</li>
+<li><strong>Skala tampilan</strong>: pilih faktor <strong>bilangan bulat</strong> (2×, 3×, 4×). Skala 2.5× membuat piksel tidak seragam. Untuk layar HiDPI: <code>canvas.width = round(cssW · dpr)</code> dan pilih skala sehingga <code>scale · dpr</code> integer.</li>
+<li><strong>Hindari sub-pixel</strong>: <code>Math.round</code> posisi sebelum <code>drawImage</code>; jangan <code>translate(0.5, …)</code> kecuali untuk garis 1px.</li>
+<li><strong>Padding 0 vs 1px</strong>: dengan <code>imageSmoothingEnabled=false</code> dan skala integer, 0px sudah aman. Pakai 1px bila memakai WebGL/mipmap, skala non-integer, atau atlas dipotong otomatis oleh engine.</li>
+</ul>
+<h3>Mencegah halo putih / garis tepi</h3>
+<ol>
+<li>Ekspor dengan alpha <strong>0 atau 255</strong> saja (tanpa anti-alias tepi). <code>PX.pixelize</code> sudah begini.</li>
+<li>Bila tetap memakai tepi lunak: <strong>alpha bleed</strong> — isi RGB piksel transparan dengan warna piksel solid terdekat (jangan putih) sebelum ekspor, atau ekspor tanpa &quot;matte&quot; putih.</li>
+<li>WebGL: gunakan <em>premultiplied alpha</em> secara konsisten (<code>gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)</code> + <code>blendFunc(ONE, ONE_MINUS_SRC_ALPHA)</code>).</li>
+<li>Jangan menyimpan sprite di atas latar putih lalu di-&quot;cut&quot;; render langsung ke canvas transparan.</li>
+<li>Beri <strong>ekstrusi</strong> 1px (gandakan piksel tepi frame ke padding) bila memakai skala non-integer atau filter linear.</li>
+</ol>
+
+<nav class="pn"><a href="pixel-buffer.html">← Buffer piksel Uint32 dan aturan integer</a><a href="tracer-muzzle.html">Tracer peluru, muzzle flash, dan percikan tumbukan →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kintil555.github.io/makespritewithclaude/sitemap.xml

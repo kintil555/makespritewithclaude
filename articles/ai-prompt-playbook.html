@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panduan prompt untuk AI — sprite pixel yang benar sejak percobaan pertama — Make Sprite With Claude</title>
+<meta name="description" content="Template spesifikasi, aturan ketat, urutan kerja, dan checklist verifikasi agar Claude atau AI lain menghasilkan sprite pixel prosedural yang tajam dan konsisten.">
+<link rel="canonical" href="https://kintil555.github.io/makespritewithclaude/articles/ai-prompt-playbook.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://kintil555.github.io/makespritewithclaude/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://kintil555.github.io/makespritewithclaude/md/ai-prompt-playbook.md" title="Markdown">
+<meta property="og:title" content="Panduan prompt untuk AI — sprite pixel yang benar sejak percobaan pertama — Make Sprite With Claude"><meta property="og:description" content="Template spesifikasi, aturan ketat, urutan kerja, dan checklist verifikasi agar Claude atau AI lain menghasilkan sprite pixel prosedural yang tajam dan konsisten."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Panduan prompt untuk AI — sprite pixel yang benar sejak percobaan pertama","description":"Template spesifikasi, aturan ketat, urutan kerja, dan checklist verifikasi agar Claude atau AI lain menghasilkan sprite pixel prosedural yang tajam dan konsisten.","inLanguage":"id","url":"https://kintil555.github.io/makespritewithclaude/articles/ai-prompt-playbook.html","articleSection":"Panduan untuk AI","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#ai">Panduan untuk AI</a></p>
+<h1>Panduan prompt untuk AI — sprite pixel yang benar sejak percobaan pertama</h1><p class="lead">Template spesifikasi, aturan ketat, urutan kerja, dan checklist verifikasi agar Claude atau AI lain menghasilkan sprite pixel prosedural yang tajam dan konsisten.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/ai-prompt-playbook.md">md/ai-prompt-playbook.md</a></p>
+<h2>Aturan emas (jika hanya membaca satu bagian)</h2>
+<ol>
+<li><strong>Jangan menggambar piksel secara manual.</strong> Render halus resolusi tinggi → turunkan ke grid (<a href="hires-to-pixel.html">teknik inti</a>).</li>
+<li><strong>Semua koordinat tujuan adalah integer.</strong> Bulatkan saat render, bukan saat simulasi.</li>
+<li><strong>Palet terbatas</strong> (≤ 6 warna per material) dengan ramp dan dither Bayer (<a href="dither-palette.html">palet</a>).</li>
+<li><strong>Efek = lapisan disc berpiksel</strong>, bukan gradient/<code>arc()</code> anti-alias (<a href="pixel-buffer.html">buffer</a>).</li>
+<li><strong>Alpha hanya 0 atau 255</strong> pada hasil akhir (anti-halo).</li>
+<li><strong>Verifikasi dengan melihat</strong>: render ke PNG, perbesar (nearest-neighbor), periksa; jangan menebak.</li>
+</ol>
+<h2>Template spesifikasi (isi lalu kirim ke AI)</h2>
+<pre><code>Nama aset        : [mis. Karakter utama / ubin tanah / efek ledakan]
+Ukuran 1 frame  : [mis. 32x32 px]
+Animasi &amp; frame : [mis. Idle 4, Walk 6]
+Output kode     : [JS Canvas | CSS sprite]
+Gaya visual     : [Retro pixel art | clean vector | hand-drawn]
+Palet           : [mis. 16 warna, hue shift dingin di bayangan]
+Padding atlas   : [0px | 1px]
+Pivot           : [mis. bottom-center (16,28)]
+Latar uji       : [mis. #14121c gelap]
+</code></pre>
+<p>Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersih, (3) panduan texturing &amp; optimasi (format, kompresi warna, <code>image-rendering</code>). Contoh jawaban lengkap: <a href="sprite-sheet.html">sprite sheet</a>.</p>
+<h2>Aturan ketat untuk AI</h2>
+<ul>
+<li><strong>Grid &amp; padding</strong>: X/Y integer, tanpa desimal (cegah blur sub-pixel). Hitung <code>x = P + i·(FR+P)</code>.</li>
+<li><strong>Spacing</strong>: gunakan 1px padding bila WebGL / skala non-integer; 0px cukup untuk canvas 2D dengan smoothing mati.</li>
+<li><strong>Pivot</strong>: tentukan satu titik tetap (mis. kaki) dan gambar dengan <code>dx = round(x) − pivot.x</code>.</li>
+<li><strong>Texturing</strong>: 1 arah cahaya; highlight di tepi atas, shade di tepi bawah, outline 1px, dither hanya di area luas.</li>
+<li><strong>Ekspor</strong>: PNG-8 indexed, tanpa anti-alias tepi; jika ada tepi lunak lakukan alpha bleed.</li>
+<li><strong>Browser</strong>: <code>image-rendering: pixelated</code>, <code>ctx.imageSmoothingEnabled = false</code>, skala tampilan integer.</li>
+</ul>
+<h2>Urutan kerja yang disarankan</h2>
+<ol>
+<li>Tentukan spesifikasi (template di atas).</li>
+<li>Buat <strong>rig</strong> halus (tulang/IK atau persamaan bentuk) — <a href="hires-to-pixel.html">stickman IK</a> atau <a href="procedural-character.html">karakter dari persamaan</a>.</li>
+<li>Turunkan ke piksel dengan <code>PX.pixelize</code> / pemetaan per-piksel.</li>
+<li>Tambah efek dari katalog: <a href="tracer-muzzle.html">tracer</a>, <a href="explosion.html">ledakan</a>, <a href="crater-hole.html">lubang</a>, <a href="fire.html">api</a>, <a href="neutron-psr.html">neutron/pulsar</a>.</li>
+<li>Bake atlas (<a href="sprite-sheet.html">sprite sheet</a>) dan uji di latar gelap.</li>
+<li>Periksa checklist.</li>
+</ol>
+<h2>Checklist verifikasi</h2>
+<ul>
+<li><input disabled="" type="checkbox"> Zoom 800% nearest-neighbor: tidak ada piksel setengah transparan.</li>
+<li><input disabled="" type="checkbox"> Tidak ada warna di luar palet (hitung warna unik).</li>
+<li><input disabled="" type="checkbox"> Siluet terbaca di latar gelap dan terang (ada outline).</li>
+<li><input disabled="" type="checkbox"> Tidak ada garis putih di tepi pada latar #14121c.</li>
+<li><input disabled="" type="checkbox"> Antar frame: pivot tidak bergeser (kaki tidak &quot;melayang&quot;).</li>
+<li><input disabled="" type="checkbox"> Posisi gambar di layar integer; tidak ada jitter saat bergerak lambat.</li>
+</ul>
+<h2>Kesalahan umum AI</h2>
+<table>
+<thead>
+<tr>
+<th>Gejala</th>
+<th>Penyebab</th>
+<th>Perbaikan</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Sprite buram</td>
+<td>canvas di-scale non-integer / smoothing aktif</td>
+<td>skala integer, <code>image-rendering: pixelated</code></td>
+</tr>
+<tr>
+<td>Tepi berduri/halo</td>
+<td>anti-alias di PNG akhir</td>
+<td>ambang cakupan ≥50%, alpha 0/255</td>
+</tr>
+<tr>
+<td>Bayangan berkedip</td>
+<td>pola dither pakai koordinat objek yang berubah</td>
+<td>pakai koordinat layar/atlas</td>
+</tr>
+<tr>
+<td>Efek &quot;mengambang&quot; tidak menyatu</td>
+<td>glow dengan gradient</td>
+<td>disc dither atau additive alpha rendah</td>
+</tr>
+<tr>
+<td>Anggota badan menipis saat bergerak</td>
+<td>menggambar piksel langsung</td>
+<td>render halus dulu</td>
+</tr>
+</tbody></table>
+
+<nav class="pn"><span></span><a href="hires-to-pixel.html">Render halus lalu turunkan ke grid piksel →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>

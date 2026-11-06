@@ -1,0 +1,148 @@
+{
+  "name": "Make Sprite With Claude",
+  "url": "https://kintil555.github.io/makespritewithclaude",
+  "language": "id",
+  "categories": {
+    "rendering": {
+      "title": "Teknik Rendering",
+      "desc": "Dari render halus ke grid piksel, palet, dithering, buffer, sprite sheet."
+    },
+    "efek": {
+      "title": "Efek (VFX)",
+      "desc": "Tracer, ledakan, lubang, api, bola neutron & pulsar — semua prosedural."
+    },
+    "karakter": {
+      "title": "Karakter Prosedural",
+      "desc": "Menggambar karakter dari persamaan, bukan dari piksel manual."
+    },
+    "ai": {
+      "title": "Panduan untuk AI",
+      "desc": "Template prompt, aturan ketat, dan checklist agar hasil AI konsisten."
+    }
+  },
+  "articles": [
+    {
+      "slug": "ai-prompt-playbook",
+      "title": "Panduan prompt untuk AI — sprite pixel yang benar sejak percobaan pertama",
+      "category": "ai",
+      "summary": "Template spesifikasi, aturan ketat, urutan kerja, dan checklist verifikasi agar Claude atau AI lain menghasilkan sprite pixel prosedural yang tajam dan konsisten.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/ai-prompt-playbook.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/ai-prompt-playbook.md",
+      "code": []
+    },
+    {
+      "slug": "hires-to-pixel",
+      "title": "Render halus lalu turunkan ke grid piksel",
+      "category": "rendering",
+      "summary": "Teknik inti — gambar karakter sebagai vektor halus beresolusi tinggi, lalu ubah per sel menjadi piksel ber-shading dan ber-outline.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/hires-to-pixel.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/hires-to-pixel.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/20-pixelize.js",
+        "https://kintil555.github.io/makespritewithclaude/src/code/21-stickman.js",
+        "https://kintil555.github.io/makespritewithclaude/src/code/30-demo-hires.js"
+      ]
+    },
+    {
+      "slug": "dither-palette",
+      "title": "Palet terbatas dan ordered dithering",
+      "category": "rendering",
+      "summary": "Shading bola/benda dengan 5–6 warna dan matriks Bayer 4×4 sebagai ganti gradient, supaya tetap terlihat pixel art.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/dither-palette.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/dither-palette.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/32-demo-dither.js",
+        "https://kintil555.github.io/makespritewithclaude/src/code/00-core.js"
+      ]
+    },
+    {
+      "slug": "pixel-buffer",
+      "title": "Buffer piksel Uint32 dan aturan integer",
+      "category": "rendering",
+      "summary": "Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/pixel-buffer.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/pixel-buffer.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/10-buf.js"
+      ]
+    },
+    {
+      "slug": "sprite-sheet",
+      "title": "Sprite sheet — grid, pivot, texturing, ekspor anti-halo",
+      "category": "rendering",
+      "summary": "Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/sprite-sheet.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/sprite-sheet.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/31-demo-sheet.js"
+      ]
+    },
+    {
+      "slug": "tracer-muzzle",
+      "title": "Tracer peluru, muzzle flash, dan percikan tumbukan",
+      "category": "efek",
+      "summary": "Jejak peluru 3 tingkat (inti 1px, pasangan piksel, ekor gelap), kilatan moncong dari sinar acak, dan percikan berpantul.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/tracer-muzzle.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/tracer-muzzle.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/40-demo-tracer.js"
+      ]
+    },
+    {
+      "slug": "explosion",
+      "title": "Ledakan prosedural berlapis",
+      "category": "efek",
+      "summary": "Kilat putih, gumpalan bola api 5 lapis, sinar radiasi, gelombang kejut bergelombang, partikel, dan asap — dengan palet api atau neutron.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/explosion.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/explosion.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/41-demo-blast.js"
+      ]
+    },
+    {
+      "slug": "crater-hole",
+      "title": "Lubang, kawah, dan gosong pada dinding",
+      "category": "efek",
+      "summary": "Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/crater-hole.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/crater-hole.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/42-demo-crater.js"
+      ]
+    },
+    {
+      "slug": "fire",
+      "title": "Api dan asap dari partikel disc berlapis",
+      "category": "efek",
+      "summary": "Ramp 9 warna, partikel membesar saat menua, inti bergeser ke atas, highlight kecil, glow additive, dan asap.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/fire.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/fire.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/43-demo-fire.js"
+      ]
+    },
+    {
+      "slug": "neutron-psr",
+      "title": "Bola neutron dan pulsar (PSR)",
+      "category": "efek",
+      "summary": "Proyektil bola neutron biru dengan jejak, ledakan Cherenkov, dan pulsar ber-sinar menyapu dengan garis medan dipol.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/neutron-psr.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/neutron-psr.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/44-demo-neutron.js",
+        "https://kintil555.github.io/makespritewithclaude/src/code/45-demo-pulsar.js"
+      ]
+    },
+    {
+      "slug": "procedural-character",
+      "title": "Karakter prosedural dari persamaan",
+      "category": "karakter",
+      "summary": "Setiap piksel menanyakan koordinat lokal badan; bentuk berasal dari persamaan elips/kapsul, wajah dari bitmap string, outline dari siluet.",
+      "html": "https://kintil555.github.io/makespritewithclaude/articles/procedural-character.html",
+      "markdown": "https://kintil555.github.io/makespritewithclaude/md/procedural-character.md",
+      "code": [
+        "https://kintil555.github.io/makespritewithclaude/src/code/46-demo-char.js"
+      ]
+    }
+  ]
+}

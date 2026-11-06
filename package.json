@@ -1,0 +1,12 @@
+{
+  "name": "makespritewithclaude",
+  "version": "1.0.0",
+  "description": "Blog teknik sprite pixel prosedural yang mudah dibaca AI",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "marked": "^12.0.2"
+  },
+  "type": "module"
+}

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lubang, kawah, dan gosong pada dinding — Make Sprite With Claude</title>
+<meta name="description" content="Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.">
+<link rel="canonical" href="https://kintil555.github.io/makespritewithclaude/articles/crater-hole.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://kintil555.github.io/makespritewithclaude/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://kintil555.github.io/makespritewithclaude/md/crater-hole.md" title="Markdown">
+<meta property="og:title" content="Lubang, kawah, dan gosong pada dinding — Make Sprite With Claude"><meta property="og:description" content="Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Lubang, kawah, dan gosong pada dinding","description":"Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.","inLanguage":"id","url":"https://kintil555.github.io/makespritewithclaude/articles/crater-hole.html","articleSection":"Efek (VFX)","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#efek">Efek (VFX)</a></p>
+<h1>Lubang, kawah, dan gosong pada dinding</h1><p class="lead">Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/crater-hole.md">md/crater-hole.md</a></p>
+<h2>Langkah</h2>
+<ol>
+<li><strong>Bentuk lubang</strong>: radius per sudut <code>r·(1 + 0.12 sin3θ + 0.07 sin5θ + 0.04 sin9θ)</code> dengan fase acak. Piksel di dalamnya ditandai <code>hole=1</code>.</li>
+<li><strong>Serpihan</strong>: sebelum dihapus, ambil warna asli piksel dan jadikan partikel 1px (sebagian kecil saja). Lubang jadi terlihat &quot;pecah dari material itu&quot;.</li>
+<li><strong>Dinding belakang</strong>: piksel lubang diganti pola yang sama tetapi ×0.42 lebih gelap dan digeser.</li>
+<li><strong>Kedalaman</strong>: untuk tiap piksel lubang, cari piksel non-lubang di atas-kiri (<code>x-((q+1)&gt;&gt;1), y-q</code>, <code>q=2..5</code>). Jika <code>q≤2</code> → gelapkan padat; <code>q=3</code> → dither 60%; <code>q=4</code> → dither 30%. Bayangan jatuh di bawah bibir atas.</li>
+<li><strong>Gosong</strong>: jarak <code>d</code> dari tepi lubang. <code>d≤1.5</code> → hitam pekat (cincin tipis). Lalu <code>lv = 0.95·(1−t)^1.15</code>; gelapkan jika <code>lv &gt; bayer(x,y)</code>. Memudar keluar tanpa gradient.</li>
+<li><strong>Bara</strong>: piksel cincin pertama berpendar oranye 0.75 detik lalu padam.</li>
+</ol>
+<p>Efek bersifat kumulatif: lubang yang saling tumpuk tetap benar.</p>
+<div class="demo" data-demo="crater"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<p>Klik dinding untuk membuat lubang.</p>
+<h2>Kode</h2>
+<details class="code" open><summary>Kode: <code>src/code/42-demo-crater.js</code></summary><pre><code class="language-js">// Lubang di dinding: hapus piksel (tepi tak beraturan), tampilkan dinding belakang, bayangan kedalaman di bawah bibir atas,
+// gosong = cincin hitam tipis lalu dither Bayer memudar keluar, serpihan mewarisi warna asli, bara di tepi lubang.
+PX.demos.crater = (host) =&gt; {
+  const W = 160, H = 90, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), p = PX.pointer(cv), rnd = PX.rng(7);
+  const PALB = ['#8c4a3a', '#9b5644', '#7d4132', '#a4604b'].map(PX.hex);
+  const brick = (x, y, off, dark, seed) =&gt; {                         // pola bata + noise per bata/per piksel
+    const row = Math.floor(y / 6), ox = x + (row &amp; 1 ? 7 : 0) + off, bx = Math.floor(ox / 14);
+    const mortar = y % 6 === 0 || ox % 14 === 0, base = mortar ? [60, 44, 40] : PALB[Math.floor(PX.hash(bx, row, seed) * 4)];
+    const n = (PX.hash(x, y, 9) - 0.5) * 16, k = dark * (mortar ? 1 : 1);
+    return [PX.clamp((base[0] + n) * k, 0, 255), PX.clamp((base[1] + n) * k, 0, 255), PX.clamp((base[2] + n) * k, 0, 255)];
+  };
+  const base = new ImageData(W, H), back = new ImageData(W, H), img = new ImageData(W, H), hole = new Uint8Array(W * H);
+  for (let y = 0; y &lt; H; y++) for (let x = 0; x &lt; W; x++) {
+    const i = (y * W + x) * 4, f = brick(x, y, 0, 1, 1), b = brick(x, y, 5, 0.42, 2);
+    base.data.set([...f, 255], i); back.data.set([...b, 255], i);
+  }
+  img.data.set(base.data);
+  const debris = [], heat = [];
+  const mul = (i, k) =&gt; { for (let j = 0; j &lt; 3; j++) img.data[i + j] *= k; };
+  function carve(cx, cy, r) {
+    const ph = [rnd() * 6.28, rnd() * 6.28, rnd() * 6.28], wid = 7, E = Math.ceil(r * 1.3 + wid);
+    const rr = (a) =&gt; r * (1 + 0.12 * Math.sin(3 * a + ph[0]) + 0.07 * Math.sin(5 * a + ph[1]) + 0.04 * Math.sin(9 * a + ph[2]));
+    const x0 = Math.max(0, cx - E), x1 = Math.min(W - 1, cx + E), y0 = Math.max(0, cy - E), y1 = Math.min(H - 1, cy + E);
+    const scorch = [];
+    for (let y = y0; y &lt;= y1; y++) for (let x = x0; x &lt;= x1; x++) {
+      const dx = x + 0.5 - cx, dy = y + 0.5 - cy, d = Math.hypot(dx, dy) - rr(Math.atan2(dy, dx)), i = y * W + x;
+      if (d &lt;= 0) {
+        if (!hole[i]) {                                           // serpihan membawa warna asli piksel
+          hole[i] = 1;
+          if (rnd() &lt; 0.35) { const a = Math.atan2(dy, dx), v = 30 + rnd() * 70; debris.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: 0.6 + rnd() * 0.6, c: Array.from(img.data.slice(i * 4, i * 4 + 3)) }); }
+        }
+      } else if (d &lt;= wid) scorch.push([x, y, d]);
+    }
+    for (const [x, y, d] of scorch) {                              // gosong pada dinding depan (kumulatif)
+      const i = y * W + x; if (hole[i]) continue;
+      if (d &lt;= 1.5) { mul(i * 4, 0.15); if (rnd() &lt; 0.5) heat.push({ i, t: rnd() * 0.1 }); }
+      else { const t = (d - 1.5) / (wid - 1.5), lv = 0.95 * Math.pow(1 - t, 1.15); if (lv &gt; PX.bayer(x, y)) mul(i * 4, 0.35); }
+    }
+    const al = (x, y) =&gt; x &gt;= 0 &amp;&amp; y &gt;= 0 &amp;&amp; x &lt; W &amp;&amp; y &lt; H &amp;&amp; !hole[y * W + x];
+    for (let y = Math.max(0, y0 - 5); y &lt;= Math.min(H - 1, y1 + 5); y++) for (let x = Math.max(0, x0 - 3); x &lt;= Math.min(W - 1, x1 + 3); x++) {
+      const i = y * W + x; if (!hole[i]) continue;
+      let k = 0; for (let q = 2; q &lt;= 5; q++) if (al(x - ((q + 1) &gt;&gt; 1), y - q)) { k = q; break; }     // jarak ke bibir atas
+      const s = k &amp;&amp; k &lt;= 2 ? 0.45 : k === 3 &amp;&amp; 0.6 &gt; PX.bayer(x, y) ? 0.45 : k === 4 &amp;&amp; 0.3 &gt; PX.bayer(x, y) ? 0.45 : 1;
+      for (let j = 0; j &lt; 3; j++) img.data[i * 4 + j] = back.data[i * 4 + j] * s;
+    }
+  }
+  const sx = document.createElement('canvas'); sx.width = W; sx.height = H; const sc = sx.getContext('2d');
+  let idle = 0.5;
+  PX.loop(host, (dt) =&gt; {
+    for (const k of p.clicks.splice(0)) carve(k.x, k.y, 9 + Math.floor(rnd() * 6));
+    idle -= dt; if (idle &lt;= 0) { idle = 2.2; if (!p.in) carve(20 + Math.floor(rnd() * 120), 15 + Math.floor(rnd() * 60), 9 + Math.floor(rnd() * 6)); }
+    sc.putImageData(img, 0, 0); c.drawImage(sx, 0, 0);
+    for (const h of heat) { h.t += dt; if (h.t &lt; 0.75) { c.fillStyle = h.t &lt; 0.3 ? '#ffb24a' : '#d9561c'; c.globalAlpha = (1 - h.t / 0.75) * 0.9; c.fillRect(h.i % W, (h.i / W) | 0, 1, 1); } }
+    c.globalAlpha = 1; while (heat.length &amp;&amp; heat[0].t &gt; 0.75) heat.shift();
+    for (let i = debris.length - 1; i &gt;= 0; i--) { const d = debris[i]; d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 260 * dt; d.life -= dt; if (d.life &lt;= 0) { debris.splice(i, 1); continue; } c.fillStyle = PX.rgb(d.c); c.fillRect(Math.round(d.x), Math.round(d.y), 1, 1); }
+  });
+};</code></pre></details>
+
+<nav class="pn"><a href="explosion.html">← Ledakan prosedural berlapis</a><a href="fire.html">Api dan asap dari partikel disc berlapis →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>

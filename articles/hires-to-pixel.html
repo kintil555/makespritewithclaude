@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Render halus lalu turunkan ke grid piksel — Make Sprite With Claude</title>
+<meta name="description" content="Teknik inti — gambar karakter sebagai vektor halus beresolusi tinggi, lalu ubah per sel menjadi piksel ber-shading dan ber-outline.">
+<link rel="canonical" href="https://kintil555.github.io/makespritewithclaude/articles/hires-to-pixel.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://kintil555.github.io/makespritewithclaude/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://kintil555.github.io/makespritewithclaude/md/hires-to-pixel.md" title="Markdown">
+<meta property="og:title" content="Render halus lalu turunkan ke grid piksel — Make Sprite With Claude"><meta property="og:description" content="Teknik inti — gambar karakter sebagai vektor halus beresolusi tinggi, lalu ubah per sel menjadi piksel ber-shading dan ber-outline."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Render halus lalu turunkan ke grid piksel","description":"Teknik inti — gambar karakter sebagai vektor halus beresolusi tinggi, lalu ubah per sel menjadi piksel ber-shading dan ber-outline.","inLanguage":"id","url":"https://kintil555.github.io/makespritewithclaude/articles/hires-to-pixel.html","articleSection":"Teknik Rendering","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#rendering">Teknik Rendering</a></p>
+<h1>Render halus lalu turunkan ke grid piksel</h1><p class="lead">Teknik inti — gambar karakter sebagai vektor halus beresolusi tinggi, lalu ubah per sel menjadi piksel ber-shading dan ber-outline.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/hires-to-pixel.md">md/hires-to-pixel.md</a></p>
+<h2>Masalah</h2>
+<p>Menggambar karakter bergerak langsung dari piksel (garis Bresenham, rotasi manual) menghasilkan bentuk bergerigi tidak konsisten: lengan menipis, kepala berkedip, outline pecah. AI sangat sering gagal di sini.</p>
+<h2>Ide</h2>
+<p>Pisahkan <strong>bentuk</strong> dari <strong>gaya</strong>:</p>
+<ol>
+<li>Gambar rig (tulang + IK) dengan <code>lineTo</code>/<code>arc</code> biasa di canvas besar (anti-alias boleh).</li>
+<li>Bagi canvas menjadi sel <code>B×B</code> piksel. Satu sel = satu piksel akhir.</li>
+<li>Sel menjadi piksel jika <strong>cakupan alpha ≥ 50%</strong>. Ini menghilangkan piksel &quot;sisa&quot; dari anti-alias.</li>
+<li>Tiap sel diberi kelas: depan atau belakang (dibedakan lewat warna sumber, mis. kanal merah).</li>
+<li>Shading dari tetangga: sel tanpa tetangga di atas = <strong>highlight</strong>, tanpa tetangga di bawah = <strong>shade</strong>.</li>
+<li>Sel kosong yang bersebelahan dengan siluet = <strong>outline</strong> 1 piksel.</li>
+</ol>
+<p>Hasilnya: gerakan mulus (IK/vektor), tampilan tetap piksel tajam. Alpha output hanya 0 atau 255, jadi tidak ada halo.</p>
+<div class="demo" data-demo="hires"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<p>Coba ubah <code>B</code>: <code>B=2</code> terlihat halus/detail, <code>B=8</code> kasar seperti sprite 24×24.</p>
+<h2>Aturan</h2>
+<ul>
+<li><code>S / N</code> harus bilangan bulat (<code>S=192</code>, <code>N=48</code> → <code>B=4</code>).</li>
+<li>Ketebalan garis sumber ≈ <code>1.5–2 × B</code> agar anggota badan setebal 2 piksel.</li>
+<li>Warna depan dan belakang harus terpisah jelas pada satu kanal (di sini merah 238 vs 184).</li>
+<li>Jangan menggeser hasil dengan koordinat desimal; gambar ke layar dengan <code>drawImage</code> integer.</li>
+</ul>
+<h2>Kode</h2>
+<p>Fungsi inti <code>PX.pixelize</code>:</p>
+<details class="code" open><summary>Kode: <code>src/code/20-pixelize.js</code></summary><pre><code class="language-js">// 20-pixelize.js — render halus resolusi tinggi -&gt; grid piksel (tanpa menggambar model piksel manual)
+// Langkah: (1) gambar vektor halus di canvas besar  (2) bagi jadi sel B×B  (3) sel jadi piksel bila
+// cakupan alpha &gt;= thr  (4) kelas warna depan/belakang  (5) tepi atas = highlight, tepi bawah = shade
+// (6) tetangga kosong di sekitar siluet = outline 1 piksel.
+PX.PAL = { F: [238, 122, 28], B: [184, 84, 26], HI: [255, 178, 90], FS: [214, 100, 14], BS: [140, 62, 18], OL: [40, 20, 10] };
+
+PX.pixelize = (src, N, pal = PX.PAL, thr = 0.5) =&gt; {
+  const S = src.width, B = S / N;                       // B harus integer
+  const s = src.getContext('2d').getImageData(0, 0, S, S).data;
+  const mid = (pal.F[0] + pal.B[0]) / 2;                // pembeda depan/belakang lewat kanal merah
+  const cls = new Uint8Array(N * N);                    // 0 kosong, 1 depan, 2 belakang
+  for (let cy = 0; cy &lt; N; cy++) for (let cx = 0; cx &lt; N; cx++) {
+    let sa = 0, fw = 0, bw = 0;
+    for (let y = 0; y &lt; B; y++) for (let x = 0; x &lt; B; x++) {
+      const i = ((cy * B + y) * S + cx * B + x) * 4, a = s[i + 3];
+      if (a) { sa += a; if (s[i] &gt; mid) fw += a; else bw += a; }
+    }
+    if (sa / (B * B * 255) &gt;= thr) cls[cy * N + cx] = fw &gt;= bw ? 1 : 2;
+  }
+  const out = new ImageData(N, N), d = out.data;
+  for (let cy = 0; cy &lt; N; cy++) for (let cx = 0; cx &lt; N; cx++) {
+    const i = cy * N + cx, c = cls[i]; let col = null;
+    if (c) {
+      const up = cy === 0 || !cls[i - N], dn = cy === N - 1 || !cls[i + N];
+      col = c === 1 ? (up ? pal.HI : dn ? pal.FS : pal.F) : (dn ? pal.BS : pal.B);
+    } else if ((cx &gt; 0 &amp;&amp; cls[i - 1]) || (cx &lt; N - 1 &amp;&amp; cls[i + 1]) || (cy &gt; 0 &amp;&amp; cls[i - N]) || (cy &lt; N - 1 &amp;&amp; cls[i + N])) col = pal.OL;
+    if (col) { d[i * 4] = col[0]; d[i * 4 + 1] = col[1]; d[i * 4 + 2] = col[2]; d[i * 4 + 3] = 255; }
+  }
+  return out;                                           // alpha hanya 0 atau 255 -&gt; tidak ada halo
+};</code></pre></details>
+<p>Rig stickman halus yang menjadi sumbernya (2-bone IK, <code>PX.ik</code>):</p>
+<details class="code" open><summary>Kode: <code>src/code/21-stickman.js</code></summary><pre><code class="language-js">// 21-stickman.js — rig stickman 2-bone IK, digambar halus (vektor). Tanah di y=168 (basis 192).
+PX.ik = (a, b, l1, l2, s) =&gt; {           // titik sendi (lutut/siku) untuk 2 tulang
+  const dx = b.x - a.x, dy = b.y - a.y, D = Math.hypot(dx, dy) || 1, d = Math.min(D, l1 + l2 - 0.01);
+  const k = (l1 * l1 - l2 * l2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, l1 * l1 - k * k));
+  return { x: a.x + (dx / D) * k - (dy / D) * h * s, y: a.y + (dy / D) * k + (dx / D) * h * s };
+};
+PX.stickman = (c, t, S = 192) =&gt; {
+  const P = PX.PAL, G = 168, p = t * 6, rgb = PX.rgb;
+  c.clearRect(0, 0, S, S); c.save(); c.scale(S / 192, S / 192);
+  c.lineCap = c.lineJoin = 'round'; c.lineWidth = 8;
+  const hip = { x: 96, y: 90 - Math.abs(Math.cos(p)) * 5 }, sh = { x: hip.x + 6, y: hip.y - 48 };
+  const leg = (i) =&gt; { const ph = p + i * Math.PI, f = { x: 96 + Math.sin(ph) * 28, y: G - Math.max(0, Math.cos(ph)) * 14 }; return [hip, PX.ik(hip, f, 44, 44, -1), f]; };
+  const arm = (i) =&gt; { const ph = p + i * Math.PI, h = { x: sh.x - Math.sin(ph) * 22, y: sh.y + 36 }; return [sh, PX.ik(sh, h, 22, 22, 1), h]; };
+  const limb = (q) =&gt; { c.beginPath(); c.moveTo(q[0].x, q[0].y); c.lineTo(q[1].x, q[1].y); c.lineTo(q[2].x, q[2].y); c.stroke(); };
+  c.strokeStyle = rgb(P.B); limb(leg(1)); limb(arm(1));          // anggota belakang (warna B)
+  c.strokeStyle = rgb(P.F);                                       // torso + kaki depan + kepala + lengan depan (warna F)
+  c.beginPath(); c.moveTo(hip.x, hip.y); c.lineTo(sh.x, sh.y); c.stroke(); limb(leg(0));
+  c.beginPath(); c.arc(sh.x + 4, sh.y - 18, 12, 0, Math.PI * 2); c.stroke(); limb(arm(0));
+  c.restore();
+};</code></pre></details>
+<p>Kode demo:</p>
+<details class="code" open><summary>Kode: <code>src/code/30-demo-hires.js</code></summary><pre><code class="language-js">// Demo: render halus (kiri) -&gt; grid piksel (kanan). Ubah ukuran sel B untuk melihat efeknya.
+PX.demos.hires = (host) =&gt; {
+  const S = 192, hi = PX.canvas(host, S, S, 288, true, 'Render halus 192×192'), lo = PX.canvas(host, 48, 48, 288, false, 'Grid piksel');
+  let N = 48;
+  PX.ui(host).select('Ukuran sel B', [2, 3, 4, 6, 8], 4, (v) =&gt; { N = S / v; lo.width = lo.height = N; });
+  PX.loop(host, (dt, t) =&gt; {
+    PX.stickman(hi.getContext('2d'), t, S);
+    lo.getContext('2d').putImageData(PX.pixelize(hi, N), 0, 0);
+  });
+};</code></pre></details>
+
+<nav class="pn"><a href="ai-prompt-playbook.html">← Panduan prompt untuk AI — sprite pixel yang benar sejak percobaan pertama</a><a href="dither-palette.html">Palet terbatas dan ordered dithering →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>
