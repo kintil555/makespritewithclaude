@@ -57,6 +57,7 @@ const layout = ({ title, desc, url, body, depth, jsonld, md, cur = '' }) => {
 <meta name="description" content="${esc(desc)}">
 <link rel="canonical" href="${url}">
 <link rel="stylesheet" href="${r}assets/site.css">
+<link rel="icon" href="${r}favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="${r}favicon-32.png"><link rel="apple-touch-icon" href="${r}apple-touch-icon.png">
 <link rel="alternate" type="text/plain" href="${SITE}/llms.txt" title="llms.txt">
 ${md ? `<link rel="alternate" type="text/markdown" href="${SITE}/${md}" title="Markdown">` : ''}
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:type" content="article">
