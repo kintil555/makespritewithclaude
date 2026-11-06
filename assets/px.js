@@ -272,13 +272,13 @@ PX.demos.dither = (host) => {
 /* 40-demo-tracer.js */
 // Tracer + muzzle flash + percikan tumbukan. Klik = tembak ke arah kursor (idle: tembak otomatis).
 PX.demos.tracer = (host) => {
-  const W = 160, H = 90, GY = 76, cv = PX.canvas(host, W, H, 640, false), c = cv.getContext('2d'), p = PX.pointer(cv);
-  const GUN = { x: 16, y: 60 }, CORE = '#fffbd0', MIDS = '#ffd24a', DARK = '#a8841f';
+  const W = 320, H = 180, GY = 152, cv = PX.canvas(host, W, H, 640, false), c = cv.getContext('2d'), p = PX.pointer(cv);
+  const GUN = { x: 32, y: 120 }, CORE = '#fffbd0', MIDS = '#ffd24a', DARK = '#a8841f';
   const bl = [], sp = [], fl = []; let cd = 0, kick = 0, ang = 0;
   const rays = (x, y, a, n, len, col) => { for (let i = 0; i < n; i++) { const q = a + (Math.random() - 0.5) * 1.3, l = len * (0.4 + Math.random() * 0.6); PX.line(c, x, y, x + Math.cos(q) * l, y + Math.sin(q) * l, col); } };
-  const fire = (a) => { bl.push({ x: GUN.x + Math.cos(a) * 9, y: GUN.y + Math.sin(a) * 9, a, trav: 0 }); fl.push({ t: 0, a }); kick = 2; };
+  const fire = (a) => { bl.push({ x: GUN.x + Math.cos(a) * 18, y: GUN.y + Math.sin(a) * 18, a, trav: 0 }); fl.push({ t: 0, a }); kick = 3; };
   const tracer = (b) => {                       // kepala 1px terang -> pasangan piksel tebal -> piksel tunggal gelap memudar
-    const ca = Math.cos(b.a), sa = Math.sin(b.a), len = Math.min(b.trav, 11), m = Math.max(Math.abs(ca), Math.abs(sa)),
+    const ca = Math.cos(b.a), sa = Math.sin(b.a), len = Math.min(b.trav, 14), m = Math.max(Math.abs(ca), Math.abs(sa)),
       N = Math.max(3, Math.round(len * m)), vert = Math.abs(sa) >= Math.abs(ca), ox = vert ? (ca >= 0 ? -1 : 1) : 0, oy = vert ? 0 : (sa >= 0 ? -1 : 1);
     for (let k = N; k >= 0; k--) {
       const t = k / N, x = Math.round(b.x - (ca / m) * k), y = Math.round(b.y - (sa / m) * k);
@@ -294,20 +294,20 @@ PX.demos.tracer = (host) => {
     while (p.clicks.length) { p.clicks.length = 0; fire(ang); }
     if (cd <= 0 && (p.down || !p.in)) { fire(ang + (Math.random() - 0.5) * 0.04); cd = p.in ? 0.09 : 0.35; }
     for (const b of bl) {
-      const v = 300 * dt; b.x += Math.cos(b.a) * v; b.y += Math.sin(b.a) * v; b.trav += v;
-      if (b.x >= W - 6 || b.y >= GY || b.y < 0) {
+      const v = 600 * dt; b.x += Math.cos(b.a) * v; b.y += Math.sin(b.a) * v; b.trav += v;
+      if (b.x >= W - 12 || b.y >= GY || b.y < 0) {
         b.dead = true; const base = b.y >= GY ? -Math.PI / 2 : Math.PI;
-        for (let i = 0; i < 9; i++) { const q = base + (Math.random() - 0.5) * 2.2, s = 40 + Math.random() * 90; sp.push({ x: b.x, y: Math.min(b.y, GY - 1), vx: Math.cos(q) * s, vy: Math.sin(q) * s, life: 0.25 + Math.random() * 0.3 }); }
+        for (let i = 0; i < 9; i++) { const q = base + (Math.random() - 0.5) * 2.2, s = 80 + Math.random() * 180; sp.push({ x: b.x, y: Math.min(b.y, GY - 1), vx: Math.cos(q) * s, vy: Math.sin(q) * s, life: 0.25 + Math.random() * 0.3 }); }
       }
     }
     for (let i = bl.length - 1; i >= 0; i--) if (bl[i].dead) bl.splice(i, 1);
-    for (const s of sp) { s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 260 * dt; s.life -= dt; }
+    for (const s of sp) { s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 520 * dt; s.life -= dt; }
     for (let i = sp.length - 1; i >= 0; i--) if (sp[i].life <= 0) sp.splice(i, 1);
     for (const f of fl) f.t += dt; while (fl.length && fl[0].t > 0.07) fl.shift();
-    c.clearRect(0, 0, W, H); c.fillStyle = '#26263a'; c.fillRect(0, GY, W, H - GY); c.fillStyle = '#34344e'; c.fillRect(W - 6, 0, 6, GY);
-    PX.line(c, GUN.x - Math.cos(ang) * kick, GUN.y - Math.sin(ang) * kick, GUN.x + Math.cos(ang) * 9 - Math.cos(ang) * kick, GUN.y + Math.sin(ang) * 9 - Math.sin(ang) * kick, '#8a8aa8');
-    c.fillStyle = '#5c5c78'; c.fillRect(GUN.x - 3, GUN.y - 1, 5, 6);
-    for (const f of fl) { const x = GUN.x + Math.cos(f.a) * 9, y = GUN.y + Math.sin(f.a) * 9; rays(x, y, f.a, 5, 9, MIDS); rays(x, y, f.a, 3, 5, CORE); c.fillStyle = '#fff'; c.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3); }
+    c.clearRect(0, 0, W, H); c.fillStyle = '#26263a'; c.fillRect(0, GY, W, H - GY); c.fillStyle = '#34344e'; c.fillRect(W - 12, 0, 12, GY);
+    PX.line(c, GUN.x - Math.cos(ang) * kick, GUN.y - Math.sin(ang) * kick, GUN.x + Math.cos(ang) * 18 - Math.cos(ang) * kick, GUN.y + Math.sin(ang) * 18 - Math.sin(ang) * kick, '#8a8aa8');
+    c.fillStyle = '#5c5c78'; c.fillRect(GUN.x - 6, GUN.y - 2, 10, 12);
+    for (const f of fl) { const x = GUN.x + Math.cos(f.a) * 18, y = GUN.y + Math.sin(f.a) * 18; rays(x, y, f.a, 5, 12, MIDS); rays(x, y, f.a, 3, 6, CORE); c.fillStyle = '#fff'; c.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3); }
     bl.forEach(tracer);
     for (const s of sp) { c.fillStyle = s.life > 0.2 ? CORE : MIDS; c.fillRect(Math.round(s.x), Math.round(s.y), 1, 1); }
   });

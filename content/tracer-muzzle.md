@@ -13,7 +13,7 @@ Tracer yang baik terbaca di sudut apa pun karena **ketebalan** dan **kecerahan**
 | 0–55% jejak | **pasangan** piksel (tebal) | warna tengah, terang |
 | 55–100% | 1 piksel diagonal | warna gelap, alpha 1 → 0.4 |
 
-Jejak pendek (maks. ±11 piksel) dan **tanpa glow** — glow lebar membuat peluru terlihat gemuk. Pasangan piksel digeser tegak lurus terhadap sumbu dominan (`vert ? x±1 : y±1`). Langkah jejak = 1 piksel sepanjang sumbu dominan (`ca/m, sa/m` dengan `m=max(|ca|,|sa|)`) sehingga garis rapat tanpa lubang.
+Jejak pendek (maks. ±14 piksel pada kanvas 320×180) dan **tanpa glow** — glow lebar membuat peluru terlihat gemuk. Pasangan piksel digeser tegak lurus terhadap sumbu dominan (`vert ? x±1 : y±1`). Langkah jejak = 1 piksel sepanjang sumbu dominan (`ca/m, sa/m` dengan `m=max(|ca|,|sa|)`) sehingga garis rapat tanpa lubang.
 
 ## Muzzle flash
 Hidup 2–4 frame (~70 ms): 5 sinar kuning + 3 sinar inti pendek dengan sudut acak ±0.65 rad dari arah tembak, plus kotak putih 3×3 di moncong. Moncong juga **recoil** mundur 2px lalu pulih.
