@@ -27,7 +27,7 @@ Bintang neutron berputar dengan sumbu magnet miring:
 - **Garis medan dipol 3D**: `r = s·cos²λ`; tiap garis punya azimut `φ` mengelilingi sumbu. Posisi 3D = `r·sinλ·a + r·cosλ·(cosφ·p + sinφ·q)` (`a` sumbu miring ke kamera, `p`,`q` basis tegak lurus), diproyeksikan ortografis. `z>0` digambar **setelah** bola (menimpa), `z<0` digambar **sebelum** bola (tertutup) dan lebih gelap; titik dengan `r<R` dibuang. `φ` berputar pelan sehingga garis tampak memutari bola. Dash mengalir sepanjang garis (`(k + arah·t·70) mod 40`), kepala dash diberi `lit.glow`.
 - **Ayunan smooth**: `SNAP` kecil (mendekati sinus) + interpolasi sub-langkah: sudut frame lalu→sekarang dibagi 5, tiap sinar dirender di semua sub-sudut (yang lama lebih redup) dan diambil nilai maksimum → jejak halus tanpa loncatan.
 - **Efek**: halo cahaya berdenyut, cincin + percikan di tiap ujung ayunan, bintang latar berkedip.
-- **Bola berputar cepat**: peta tekstur lon/lat (64×32, di-bake sekali dengan `fbm` yang tile di sumbu lon). Tiap piksel dipetakan terbalik ke titik bola `(nx,ny,nz)`, sumbu putar dimiringkan, `lon = atan2(ax,nz) + t·ω`, `lat = asin(ay)`, lalu ambil texel. Cahaya tetap, tekstur berputar (ω = 10 rad/s). `k = 0.08 + 0.5·l + (tex−0.5)·0.6` → `PX.tone` ke ramp 6 warna.
+- **Bola berputar cepat**: peta tekstur lon/lat (64×32, di-bake sekali dengan `fbm` yang tile di sumbu lon). Tiap piksel dipetakan terbalik ke titik bola `(nx,ny,nz)`, sumbu putar dimiringkan, `lon = atan2(ax,nz) + t·ω`, `lat = asin(ay)`, lalu ambil texel. Cahaya tetap, tekstur berputar (ω = 10 rad/s). `k = 0.08 + 0.5·l + (tex−0.5)·0.6` → `PX.tone` ke ramp 6 warna. **Pinggiran**: `rim = (r²−0.45)/0.55`, `k ×= 1 − 0.85·rim²` sehingga tepi menjadi biru gelap; `r²>0.8` dipaksa ke 2 warna tergelap; bintik putih = `hash(tx>>1, ty>>1) > 0.9` pada `r²>0.6`. Karena bintik di-hash dari koordinat **tekstur** (bukan layar), pinggiran gelap + putih ikut berputar bersama bola.
 
 > **Demo interaktif "pulsar"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
 
@@ -178,8 +178,12 @@ PX.demos.pulsar = (host) => {
       const nz = Math.sqrt(1 - r2), l = Math.max(0, nx * -0.45 + ny * -0.5 + nz * 0.75), X = x + CX | 0, Y = y + CY | 0;
       const ax = nx * CA_ + ny * SA_, ay = -nx * SA_ + ny * CA_, lon = Math.atan2(ax, nz) + t * SPIN, lat = Math.asin(PX.clamp(ay, -1, 1));   // pemetaan terbalik: piksel -> titik bola (sumbu miring) -> lon/lat
       const tu = (((lon / 6.2832) % 1) + 1) % 1, tx = (tu * TW) | 0, ty = PX.clamp(((lat / Math.PI + 0.5) * TH) | 0, 0, TH - 1);
-      const k = PX.clamp(0.08 + 0.5 * l + (TEX[ty * TW + tx] - 0.5) * 0.6 + (r2 > 0.75 ? 0.08 : 0), 0, 1);   // cahaya tetap, tekstur berputar
-      put(X, Y, PX.tone(k, X, Y, 6, 0.3));
+      const rim = PX.clamp((r2 - 0.45) / 0.55, 0, 1), fl = PX.hash(tx >> 1, ty >> 1, 91);                    // rim: 0 di tengah -> 1 di tepi; fl: bintik tetap di tekstur, jadi ikut berputar
+      const k = PX.clamp((0.08 + 0.5 * l + (TEX[ty * TW + tx] - 0.5) * 0.6) * (1 - 0.85 * rim * rim), 0, 1);   // cahaya tetap, tekstur berputar, makin gelap ke tepi
+      let ci = PX.tone(k, X, Y, 6, 0.3);
+      if (r2 > 0.6 && fl > 0.9) ci = fl > 0.96 ? 5 : 4;                                                   // sedikit putih di pinggiran (berputar bersama bola)
+      else if (r2 > 0.8) ci = Math.min(ci, fl > 0.5 ? 1 : 0);                                              // pinggiran luar: biru gelap
+      put(X, Y, ci);
     }
     for (const f of front) put(f[0], f[1], f[2]);                                    // garis medan sisi depan menimpa bola
     thPrev = th;
