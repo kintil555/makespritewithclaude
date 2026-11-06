@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sistem fluida piksel — permukaan berpegas, gelembung, air sel, benda apung — Make Sprite With Claude</title>
+<meta name="description" content="Tiga model fluida murah untuk piksel — permukaan 1D berpegas (kolam, percikan), gelembung dari ventilasi (naik, goyang, menyatu, pecah), dan air sel 2D (automata) — plus benda apung/tenggelam dan cara menggabungkannya dengan texturing air.">
+<link rel="canonical" href="https://makespritewithclaude.pages.dev/articles/fluid-system.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://makespritewithclaude.pages.dev/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://makespritewithclaude.pages.dev/md/fluid-system.md" title="Markdown">
+<meta property="og:title" content="Sistem fluida piksel — permukaan berpegas, gelembung, air sel, benda apung — Make Sprite With Claude"><meta property="og:description" content="Tiga model fluida murah untuk piksel — permukaan 1D berpegas (kolam, percikan), gelembung dari ventilasi (naik, goyang, menyatu, pecah), dan air sel 2D (automata) — plus benda apung/tenggelam dan cara menggabungkannya dengan texturing air."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Sistem fluida piksel — permukaan berpegas, gelembung, air sel, benda apung","description":"Tiga model fluida murah untuk piksel — permukaan 1D berpegas (kolam, percikan), gelembung dari ventilasi (naik, goyang, menyatu, pecah), dan air sel 2D (automata) — plus benda apung/tenggelam dan cara menggabungkannya dengan texturing air.","inLanguage":"id","url":"https://makespritewithclaude.pages.dev/articles/fluid-system.html","articleSection":"Efek (VFX)","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<div class="shell">
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#efek">Efek (VFX)</a></p>
+<h1>Sistem fluida piksel — permukaan berpegas, gelembung, air sel, benda apung</h1><p class="lead">Tiga model fluida murah untuk piksel — permukaan 1D berpegas (kolam, percikan), gelembung dari ventilasi (naik, goyang, menyatu, pecah), dan air sel 2D (automata) — plus benda apung/tenggelam dan cara menggabungkannya dengan texturing air.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/fluid-system.md">md/fluid-system.md</a></p>
+<p>Bagian gelembung dianalisis dari <code>bubbles.ts</code> buatan Sprite Fusion (MIT); bagian pegas, benda apung, dan air sel adalah teknik standar yang ditulis ulang di sini. Semuanya JavaScript murni, satu unit = satu piksel logis.</p>
+<h2>Pilih model sesuai kebutuhan</h2>
+<table>
+<thead>
+<tr>
+<th>Kebutuhan</th>
+<th>Model</th>
+<th>Biaya</th>
+<th>Kelemahan</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Permukaan kolam, ombak, riak, tempat benda jatuh</td>
+<td><strong>Pegas 1D</strong> (<code>PX.Surface</code>)</td>
+<td>O(lebar)</td>
+<td>tidak mengalir, tidak ada air di luar bak</td>
+</tr>
+<tr>
+<td>Gelembung, uap, partikel naik</td>
+<td><strong>Partikel + volume</strong> (<code>PX.Bubbles</code>)</td>
+<td>O(n²) kecil</td>
+<td>hanya partikel</td>
+</tr>
+<tr>
+<td>Air yang dituang, mengalir, mengisi cekungan</td>
+<td><strong>Sel / automata</strong> (<code>PX.CAWater</code>)</td>
+<td>O(lebar·tinggi)</td>
+<td>permukaan sedikit berkedip, volume bisa bocor di sudut</td>
+</tr>
+</tbody></table>
+<p>Jangan memakai SPH atau solver Navier-Stokes untuk piksel: biayanya besar dan hasilnya halus (merusak gaya). Ketiga model di atas lebih cocok dengan estetika grid. Tampilan air (warna, permukaan, caustic) dikerjakan terpisah di <a href="water-texturing.html">texturing air</a>.</p>
+<div class="demo" data-demo="fluid"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<p>Klik untuk menjatuhkan batu. Geser <strong>massa jenis</strong>: di bawah 1 benda mengapung, di atas 1 tenggelam.</p>
+<h2>1. Permukaan berpegas (heightfield)</h2>
+<p>Tiap kolom <code>i</code> punya tinggi <code>h[i]</code> dan kecepatan <code>v[i]</code>. Dua langkah per tick:</p>
+<pre><code>// pegas ke tinggi 0 + redaman
+v[i] += −k·h[i] − damp·v[i];   h[i] += v[i]
+// sebar ke tetangga (ulang 4 kali, hitung dulu semua delta baru terapkan)
+dl[i] = spread·(h[i] − h[i−1]);  v[i−1] += dl[i]
+dr[i] = spread·(h[i] − h[i+1]);  v[i+1] += dr[i]
+h[i−1] += dl[i];  h[i+1] += dr[i]
+</code></pre>
+<p>Nilai awal yang stabil: <code>k = 0.03</code>, <code>damp = 0.03</code>, <code>spread = 0.22</code> (harus &lt; 0.5). Jalankan dengan <strong>langkah tetap 1/60 dtk</strong> (akumulator), bukan <code>dt</code> variabel — kalau tidak, gelombang meledak saat frame lambat.</p>
+<ul>
+<li><strong>Percikan masuk</strong>: <code>splash(x, −gaya)</code> menambah kecepatan negatif di kolom itu (±½ di tetangga). Permukaan turun lalu memantul menjadi gelombang menjalar.</li>
+<li><strong>Tinggi di <code>x</code> pecahan</strong>: interpolasi linear dua kolom, lalu dibulatkan hanya saat menggambar.</li>
+<li>Tambahkan ombak ambien (dua sinus kecil) <strong>setelah</strong> simulasi: <code>y = sim.y(x) + ambien(x,t)</code>; simulasi tetap bersih.</li>
+</ul>
+<h2>2. Benda apung (Archimedes sederhana)</h2>
+<pre><code>sub = clamp((y + r − permukaan) / (2r), 0, 1)       // fraksi tercelup
+ay  = g·(1 − sub/rho)                               // rho = massa jenis relatif air
+v  −= v·drag·sub·dt                                  // hambatan hanya saat tercelup
+</code></pre>
+<p>Pada <code>rho &lt; 1</code> benda berhenti saat <code>sub = rho</code> (mengapung dengan sebagian di atas air); pada <code>rho &gt; 1</code> tenggelam sampai dasar. Satu persamaan, tanpa cabang &quot;terapung/tenggelam&quot;.</p>
+<p><strong>Saat masuk air</strong> (<code>sub</code> berubah dari 0 ke &gt; 0, sekali): <code>surface.splash(x, −min(3, vy·r·0.004))</code>, semburkan <code>min(14, vy·r·0.05)</code> tetes, dan mulai jejak gelembung. Saat bergerak cepat di bawah air, munculkan gelembung kecil dengan probabilitas <code>dt·12</code>.</p>
+<h2>3. Percikan (tetes)</h2>
+<p>Partikel dengan gravitasi (<code>vy += 220·dt</code>), digambar 1 piksel terang + 1 piksel ekor <code>LIT</code> di belakang arah gerak. Saat <code>vy &gt; 0</code> dan <code>y ≥ permukaan(x)</code>: buang tetes dan <code>splash(x, −0.25)</code> — riak kecil. Rantai sebab-akibat ini (benda → percikan → tetes → riak) membuat air terasa hidup tanpa simulasi mahal.</p>
+<h2>4. Gelembung</h2>
+<p>Setiap <strong>ventilasi</strong> punya laju spawn berfluktuasi (<code>dt·5·density·(0.7 + 0.3·noise)</code>) dan <strong>semburan</strong> tiap 1.4–3.2 dtk (5–10 gelembung rapat). Per gelembung:</p>
+<pre><code>vy  += (−(20 + 13r) − vy)·min(1, 3dt)       // naik lebih cepat bila besar, mendekati bertahap
+ph  += dt·(4 + 2/r)                         // gelembung kecil bergetar lebih cepat
+x    = x0 + sin(ph)·(0.5 + 0.8r)            // goyang kiri-kanan
+x0  += noise(0.4t + i·0.13)·3·dt            // hanyut
+r    = min(5, r + 0.12·dt)                  // tumbuh (tekanan turun)
+</code></pre>
+<ul>
+<li><strong>Menyatu</strong>: dua gelembung (r ≥ 1) yang jaraknya &lt; <code>0.75·(ra + rb)</code> menjadi satu dengan <code>r = ∛(ra³ + rb³)</code> (volume kekal), posisi dirata-rata, dan <code>wob = 1</code> (getaran gepeng sesaat).</li>
+<li><strong>Pecah</strong>: saat <code>y &lt; permukaan(x) + 1</code> → efek pecah 0.2 dtk: setengah elips percikan yang melebar (<code>rx = r + 1 + 3k</code>, tinggi ½) + dua tetes naik, memudar lewat Bayer.</li>
+<li><strong>Layer</strong>: sekitar 35% gelembung <code>near</code> digambar setelah benda (layer depan), sisanya di belakang — kedalaman murah.</li>
+<li><strong>Isi awal</strong>: sebar gelembung di sepanjang kolom ventilasi saat dibuat agar adegan tidak kosong pada detik pertama.</li>
+</ul>
+<p><strong>Gambar menurut ukuran</strong> (detail berbanding ukuran, jangan menggambar cincin untuk 1 piksel):</p>
+<table>
+<thead>
+<tr>
+<th><code>r</code></th>
+<th>Gambar</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>&lt; 0.9</td>
+<td>1 piksel (<code>RIM</code> atau <code>LIT</code>)</td>
+</tr>
+<tr>
+<td>&lt; 1.5</td>
+<td>blok 2×2: <code>HI LIT / RIM SHADE</code> + glow kecil</td>
+</tr>
+<tr>
+<td>≥ 1.5</td>
+<td>cincin 1 piksel (sisi terang kiri-atas <code>LIT</code>, sisi gelap <code>SHADE</code>, lainnya <code>RIM</code>), isi 12% dither <code>FILL</code>, highlight <code>HI</code> di (−0.45, −0.45)·r, titik <code>LIT</code> di sisi berlawanan bila <code>r ≥ 2</code>, bentuk gepeng bergantian <code>±10%</code></td>
+</tr>
+</tbody></table>
+<h2>5. Air sel (automata)</h2>
+<p>Grid <code>g</code>: 0 kosong, 1 air, 2 tembok. Pindai <strong>dari bawah ke atas</strong>; untuk tiap sel air, coba berurutan:</p>
+<ol>
+<li><strong>Jatuh lurus</strong> jika sel di bawah kosong.</li>
+<li><strong>Diagonal bawah</strong> (arah acak) jika sel samping dan diagonal kosong.</li>
+<li><strong>Mengalir ke samping</strong> sejauh <code>flow</code> sel (1–8) ke arah acak.</li>
+</ol>
+<p>Aturan yang membuatnya benar: (a) <strong>arah pindai kiri/kanan bergantian</strong> tiap langkah supaya air tidak condong ke satu sisi; (b) tandai sel yang baru dipindah (<code>stamp</code>) agar tidak diproses dua kali dalam satu langkah; (c) jalankan 2 langkah per frame agar alirannya cepat; (d) sumber (keran) menyuntik sel <strong>tiap langkah</strong>, bukan tiap frame, supaya aliran utuh.</p>
+<div class="demo" data-demo="waterca"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<p><strong>Pewarnaan</strong>: hitung kedalaman dari permukaan per kolom (pindai dari atas: sel air tanpa air di atas → <code>d = 0</code>, selain itu <code>d = d_atas + 1</code>). Warna <code>RAMP[tone(1 − min(1, d/14), x, y, 4, 0.25)]</code> dan kilau berjalan di permukaan (<code>(x + floor(6t)) % 9 == 0</code> → <code>HI</code>). Kedalaman dari <em>permukaan</em> membuat kolam dangkal tetap terang walaupun ada di dasar peta.</p>
+<p><strong>Kelemahan yang perlu diketahui</strong>: permukaan sedikit berkedip (sel teratas bergerak ke samping), dan genangan tipis 1 sel tidak merata sempurna. Itu bisa diterima sebagai &quot;kilau&quot; di gaya piksel; jika tidak boleh, hanya izinkan gerak samping bila sel di atasnya air atau ada penurunan tinggi di tujuan.</p>
+<h2>Menggabungkan semuanya</h2>
+<ol>
+<li><code>surface.update(dt)</code>, benda, tetes, <code>bubbles.update(dt)</code>.</li>
+<li><code>compose</code> latar menurut tinggi permukaan, benda bawah air, <code>tint</code>, <code>snow</code>, gelembung belakang, <code>surface()</code>, gelembung depan, tetes, <code>caustics()</code>.</li>
+<li>Satu fungsi <code>sy(x)</code> dibagikan ke gelembung (titik pecah), benda (fraksi tercelup), tint, dan garis permukaan — satu sumber kebenaran untuk tinggi air.</li>
+</ol>
+<h2>Performa</h2>
+<ul>
+<li>Gelembung: tabrakan O(n²); batasi populasi (≤ ~150) atau pakai grid sel jika lebih.</li>
+<li>Pegas 1D: 4 putaran penyebaran × lebar; murah.</li>
+<li>Air sel: ~9.000 sel × 2 langkah masih lancar; gunakan <code>Uint8Array</code>, hindari alokasi array di dalam loop sel.</li>
+<li>Semua posisi digambar setelah pembulatan; simulasi tetap float.</li>
+</ul>
+<h2>Checklist untuk AI</h2>
+<ol>
+<li>Pilih model dari tabel; jangan menggunakan solver fluida kontinu.</li>
+<li>Langkah tetap 1/60 untuk pegas; <code>spread &lt; 0.5</code>.</li>
+<li>Benda: satu rumus <code>ay = g(1 − sub/rho)</code>; masuk air memicu percikan sekali.</li>
+<li>Gelembung: kecepatan, goyang, tumbuh, menyatu dengan <code>∛</code>, pecah dengan efek setengah elips; detail menurut ukuran.</li>
+<li>Air sel: pindai bawah→atas, arah bergantian, stamp, keran per langkah.</li>
+<li>Satu fungsi tinggi permukaan dibagikan ke semua komponen.</li>
+<li>Lihat hasil render diperbesar sebelum menyetel angka.</li>
+</ol>
+<h2>Kode</h2>
+<details class="code" open><summary>Kode: <code>src/code/17-fluid.js</code></summary><pre><code class="language-js">// 17-fluid.js — tiga model fluida murah untuk piksel: (1) PX.Surface = permukaan 1D berpegas, (2) PX.Bubbles = gelembung dari ventilasi, (3) PX.CAWater = air 2D berbasis sel (automata).
+
+// (1) Permukaan: tiap kolom = pegas (Hooke) + penyebaran ke tetangga. h&gt;0 = naik. Langkah tetap 1/60 dtk agar stabil.
+PX.Surface = class {
+  constructor(n, base, o = {}) {
+    this.n = n; this.base = base; this.h = new Float32Array(n); this.v = new Float32Array(n); this.dl = new Float32Array(n); this.dr = new Float32Array(n);
+    this.k = o.k ?? 0.03; this.damp = o.damp ?? 0.03; this.spread = o.spread ?? 0.22; this.acc = 0;
+  }
+  splash(x, f) { const i = PX.clamp(Math.round(x), 0, this.n - 1); this.v[i] += f; if (i &gt; 0) this.v[i - 1] += f * 0.5; if (i &lt; this.n - 1) this.v[i + 1] += f * 0.5; }   // f&lt;0 = ditekan ke bawah
+  y(x) { x = PX.clamp(x, 0, this.n - 1); const i = Math.floor(x), j = Math.min(this.n - 1, i + 1), f = x - i; return this.base - (this.h[i] * (1 - f) + this.h[j] * f); }
+  update(dt) { this.acc += dt; while (this.acc &gt;= 1 / 60) { this.acc -= 1 / 60; this.step(); } }
+  step() {
+    const { n, h, v, dl, dr, k, damp, spread } = this;
+    for (let i = 0; i &lt; n; i++) { v[i] += -k * h[i] - damp * v[i]; h[i] += v[i]; }                    // pegas ke tinggi 0 + redaman
+    for (let pass = 0; pass &lt; 4; pass++) {                                                            // sebar: tetangga ditarik ke selisih tinggi
+      for (let i = 0; i &lt; n; i++) { if (i &gt; 0) { dl[i] = spread * (h[i] - h[i - 1]); v[i - 1] += dl[i]; } if (i &lt; n - 1) { dr[i] = spread * (h[i] - h[i + 1]); v[i + 1] += dr[i]; } }
+      for (let i = 0; i &lt; n; i++) { if (i &gt; 0) h[i - 1] += dl[i]; if (i &lt; n - 1) h[i + 1] += dr[i]; }
+    }
+  }
+};
+
+// (2) Gelembung (dari sistem Sprite Fusion, ditulis ulang): ventilasi -&gt; naik, goyang, tumbuh, menyatu (volume kekal), pecah di permukaan.
+PX.Bubbles = class {
+  constructor({ x0, x1, top, ground, surfY, vents, density = 1, seed = 1 }) {
+    Object.assign(this, { x0, x1, top, ground, D: density, surfY: surfY ?? (() =&gt; top), t: 0, list: [], pops: [] });
+    const R = (this.R = PX.rng(seed)); this.rg = (a, b) =&gt; a + (b - a) * R();
+    this.vents = (vents ?? [0.17, 0.5, 0.83].map((f) =&gt; x0 + f * (x1 - x0))).map((x) =&gt; ({ x, acc: R(), burst: this.rg(0.5, 2.5), seed: this.rg(0, 100) }));
+    for (const v of this.vents) for (let y = ground(v.x) - 4; y &gt; top; y -= this.rg(9, 23) / density) {      // isi awal sepanjang kolom supaya adegan tidak kosong
+      this.spawn(v, y, 0); const b = this.list[this.list.length - 1]; b.r *= 1 + (1 - (y - top) / (ground(v.x) - top)) * 0.4; b.vy = -(20 + 13 * b.r);
+    }
+  }
+  spawn(v, y, big) {
+    const R = this.R, rg = this.rg, r = big ? rg(1.5, 3.2) * big : R() &lt; 0.7 ? rg(0.5, 1.4) : rg(1.4, 2.6);
+    this.list.push({ x0: v.x + rg(-2, 2), x: v.x, y, r, vy: 0, ph: rg(0, 6.283), wob: 0, near: R() &lt; 0.35 });
+  }
+  add(x, y, r) { this.list.push({ x0: x, x, y, r, vy: -(20 + 13 * r), ph: this.rg(0, 6.283), wob: 0, near: false }); }   // gelembung dari sumber lain (benda jatuh)
+  update(dt) {
+    const L = this.list, rg = this.rg, n1 = (x, s) =&gt; PX.vnoise(x, s * 3.7) * 2 - 1; this.t += dt; const t = this.t;
+    for (const v of this.vents) {
+      v.acc += dt * 5 * this.D * (0.7 + 0.3 * n1(t * 0.8 + v.seed, 3));                                           // laju spawn berfluktuasi pelan
+      for (; v.acc &gt; 1; v.acc--) this.spawn(v, this.ground(v.x) - 2, 0);
+      if ((v.burst -= dt) &lt; 0) { v.burst = rg(1.4, 3.2); const n = 5 + Math.floor(this.R() * 6); for (let i = 0; i &lt; n; i++) this.spawn(v, this.ground(v.x) - 2 - i * 2.5, rg(0.6, 1)); }   // semburan
+    }
+    for (let i = L.length - 1; i &gt;= 0; i--) {
+      const b = L[i];
+      b.vy += (-(20 + 13 * b.r) - b.vy) * Math.min(1, dt * 3);                                                     // kecepatan naik ∝ ukuran, mendekati bertahap
+      b.y += b.vy * dt; b.ph += dt * (4 + 2 / b.r);
+      b.x = b.x0 + Math.sin(b.ph) * (0.5 + 0.8 * b.r); b.x0 += n1(t * 0.4 + i * 0.13, 5) * 3 * dt;                 // goyang kiri-kanan + hanyut
+      b.r = Math.min(5, b.r + dt * 0.12); b.wob *= 1 - Math.min(1, dt * 4);                                         // tumbuh (tekanan turun)
+      if (b.y &lt; this.surfY(b.x) + 1) { this.pops.push({ x: b.x, y: this.surfY(b.x), r: b.r, t: 0 }); L.splice(i, 1); }
+    }
+    for (let i = 0; i &lt; L.length; i++) {                                                                           // menyatu: volume kekal r = ∛(ra³+rb³)
+      const a = L[i]; if (a.r &lt; 1) continue;
+      for (let j = i + 1; j &lt; L.length; j++) { const b = L[j]; if (b.r &lt; 1 || Math.hypot(a.x - b.x, a.y - b.y) &gt; (a.r + b.r) * 0.75) continue; a.r = Math.cbrt(a.r ** 3 + b.r ** 3); a.x0 = (a.x0 + b.x0) / 2; a.wob = 1; L.splice(j--, 1); }
+    }
+    for (let i = this.pops.length - 1; i &gt;= 0; i--) if ((this.pops[i].t += dt) &gt; 0.2) this.pops.splice(i, 1);
+  }
+  draw(buf, lit, layer) {
+    if (layer !== 'front') { for (const b of this.list) if (!b.near) this.bubble(buf, lit, b); for (const p of this.pops) this.pop(buf, p); }
+    if (layer !== 'back') for (const b of this.list) if (b.near) this.bubble(buf, lit, b);
+  }
+  bubble(buf, lit, b) {                                              // ukuran menentukan detail: &lt;0.9 = 1px, &lt;1.5 = 2×2 empat warna, lainnya = cincin + highlight
+    const { HI, LIT, RIM, SHADE } = PX.WATER, FILL = PX.mix(RIM, SHADE, 0.5), cx = b.x, cy = b.y, r = b.r;
+    if (r &lt; 0.9) { buf.px(Math.floor(cx), Math.floor(cy), r &lt; 0.7 ? RIM : LIT); return; }
+    if (r &lt; 1.5) { const px = Math.floor(cx), py = Math.floor(cy); buf.px(px, py, HI); buf.px(px + 1, py, LIT); buf.px(px, py + 1, RIM); buf.px(px + 1, py + 1, SHADE); lit.glow(cx + 0.5, cy + 0.5, 3, LIT, 0.12); return; }
+    const sq = 0.1 * Math.sin(b.ph * 2) * Math.min(1, (r - 1.5) / 2) + b.wob * 0.25, rx = r * (1 + sq), ry = r * (1 - sq);   // bentuk bergetar (gepeng bergantian) + kejut saat menyatu
+    for (let y = Math.floor(cy - ry - 1); y &lt;= Math.ceil(cy + ry + 1); y++) for (let x = Math.floor(cx - rx - 1); x &lt;= Math.ceil(cx + rx + 1); x++) {
+      const dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry, d = Math.sqrt(dx * dx + dy * dy) * r; if (d &gt; r + 0.5) continue;
+      const l = (-dx - dy) / Math.SQRT2 / Math.max(0.01, d / r);                                                    // + = menghadap cahaya kiri-atas
+      if (d &gt; r - 0.6) buf.px(x, y, l &gt; 0.45 ? LIT : l &lt; -0.55 ? SHADE : RIM); else if (PX.bayer(x, y) &lt; 0.12) buf.px(x, y, FILL);   // tepi 1px; isi hanya 12% dither
+    }
+    const hx = Math.round(cx - rx * 0.45), hy = Math.round(cy - ry * 0.45);
+    buf.px(hx, hy, HI); if (r &gt;= 2.5) { buf.px(hx + 1, hy, LIT); buf.px(hx, hy + 1, LIT); } if (r &gt;= 2) buf.px(Math.round(cx + rx * 0.5), Math.round(cy + ry * 0.5), LIT);
+    lit.glow(cx, cy, r * 2.4 + 2, RIM, 0.14);
+  }
+  pop(buf, p) {                                                      // pecah: setengah elips percikan melebar + 2 tetes naik, memudar via Bayer
+    const k = p.t / 0.2, r = p.r + 1 + k * 3, dot = (x, y, c) =&gt; { const px = Math.floor(x), py = Math.floor(y); if (1 - k &gt; PX.bayer(px, py)) buf.px(px, py, c); };
+    for (let a = 0; a &lt; 6.283; a += 0.5 / r) if (Math.sin(a) &lt; 0.2) dot(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r * 0.5, k &lt; 0.5 ? PX.WATER.HI : PX.WATER.LIT);
+    if (p.r &gt; 1.5) { dot(p.x - 2, p.y - 2 - k * 4, PX.WATER.LIT); dot(p.x + 2, p.y - 3 - k * 5, PX.WATER.LIT); }
+  }
+};
+
+// (3) Air sel (cellular automata). g: 0 kosong, 1 air, 2 tembok. Pindai bawah-&gt;atas, arah kiri/kanan bergantian tiap langkah agar tidak miring sebelah.
+PX.CAWater = class {
+  constructor(w, h, seed = 3) { this.w = w; this.h = h; this.g = new Uint8Array(w * h); this.m = new Uint8Array(w * h); this.stamp = 0; this.dir = 0; this.flow = 4; this.R = PX.rng(seed); }
+  step() {
+    const { w, h, g, m } = this; if (++this.stamp &gt; 250) { this.stamp = 1; m.fill(0); } const st = this.stamp; this.dir ^= 1;
+    for (let y = h - 2; y &gt;= 0; y--) for (let k = 0; k &lt; w; k++) {
+      const x = this.dir ? k : w - 1 - k, i = y * w + x; if (g[i] !== 1 || m[i] === st) continue;       // m: sel yang baru dipindah langkah ini jangan diproses lagi
+      const b = i + w, d = this.R() &lt; 0.5 ? -1 : 1; let to = -1;
+      if (g[b] === 0) to = b;                                                                          // 1) jatuh lurus
+      else {
+        for (let q = 0; q &lt; 2 &amp;&amp; to &lt; 0; q++) { const s = q ? -d : d; if (x + s &gt;= 0 &amp;&amp; x + s &lt; w &amp;&amp; g[b + s] === 0 &amp;&amp; g[i + s] === 0) to = b + s; }   // 2) diagonal bawah
+        for (let q = 0; q &lt; 2 &amp;&amp; to &lt; 0; q++) { const s = q ? -d : d; let j = 0; while (j &lt; this.flow &amp;&amp; x + s * (j + 1) &gt;= 0 &amp;&amp; x + s * (j + 1) &lt; w &amp;&amp; g[i + s * (j + 1)] === 0) j++; if (j &gt; 0) to = i + s * j; }   // 3) mengalir ke samping
+      }
+      if (to &gt;= 0) { g[to] = 1; g[i] = 0; m[to] = st; }
+    }
+  }
+};</code></pre></details>
+<details class="code" open><summary>Kode: <code>src/code/52-demo-fluid.js</code></summary><pre><code class="language-js">// Demo fluida: permukaan berpegas + benda berapung/tenggelam (Archimedes sederhana) + percikan + gelembung. Klik = jatuhkan batu.
+PX.demos.fluid = (host) =&gt; {
+  const W = 160, H = 90, TOP = 30, FLOOR = 82, cv = PX.canvas(host, W, H, 800), c = cv.getContext('2d'), buf = new PX.Buf(W, H), lit = new PX.Light(W, H), p = PX.pointer(cv);
+  const wat = new PX.Water(0, W, TOP, FLOOR), sc = PX.poolScene(W, H, TOP, () =&gt; FLOOR), surf = new PX.Surface(W, TOP), R = PX.rng(5), rg = (a, b) =&gt; a + (b - a) * R();
+  const objs = [], drops = []; let t = 0, rho = 1.6, caus = true;
+  const sy = (x) =&gt; surf.y(x) + Math.sin(x * 0.11 + t * 1.6) * 0.4 + Math.sin(x * 0.043 - t * 0.9) * 0.5;      // permukaan = simulasi + ombak halus
+  const bub = new PX.Bubbles({ x0: 0, x1: W, top: TOP, ground: () =&gt; FLOOR, surfY: sy, density: 0.7, seed: 2 });
+  const ui = PX.ui(host);
+  ui.range('Massa jenis benda', 0.4, 2.5, 0.1, rho, (v) =&gt; (rho = v)); ui.check('Caustic', true, (v) =&gt; (caus = v));
+  ui.button('Hujan batu', () =&gt; { for (let i = 0; i &lt; 6; i++) drop(rg(10, W - 10), -i * 12); });
+  const drop = (x, y) =&gt; { objs.push({ x, y, vx: rg(-8, 8), vy: 0, r: rg(2, 4), rho, wet: false }); if (objs.length &gt; 14) objs.shift(); };
+  const spray = (x, y, speed, r) =&gt; { const n = Math.min(14, Math.floor(speed * r * 0.05)); for (let i = 0; i &lt; n; i++) drops.push({ x: x + rg(-r, r), y, vx: rg(-30, 30), vy: -(40 + rg(0.2, 0.7) * speed) }); };
+  PX.loop(host, (dt) =&gt; {
+    t += dt; for (const k of p.clicks.splice(0)) drop(k.x, 2);
+    for (const o of objs) {
+      const s = sy(o.x), sub = PX.clamp((o.y + o.r - s) / (2 * o.r), 0, 1);                                  // fraksi tercelup 0..1
+      o.vy += 150 * (1 - sub / o.rho) * dt;                                                                    // gravitasi - gaya apung (∝ tercelup / massa jenis)
+      o.vy -= o.vy * 2.2 * sub * dt; o.vx -= o.vx * 1.5 * sub * dt; o.x += o.vx * dt; o.y += o.vy * dt;        // hambatan hanya saat tercelup
+      if (o.y + o.r &gt; FLOOR) { o.y = FLOOR - o.r; o.vy *= -0.2; o.vx *= 0.5; }
+      if (!o.wet &amp;&amp; sub &gt; 0) { o.wet = true; surf.splash(o.x, -Math.min(3, o.vy * o.r * 0.004)); spray(o.x, s, Math.abs(o.vy), o.r); }   // masuk air: tekan permukaan + percikan
+      if (sub === 0) o.wet = false;
+      if (sub &gt; 0.5 &amp;&amp; Math.hypot(o.vx, o.vy) &gt; 30 &amp;&amp; R() &lt; dt * 12) bub.add(o.x + rg(-1, 1), o.y - o.r * 0.5, rg(0.6, 1.4));   // jejak gelembung
+    }
+    for (let i = drops.length - 1; i &gt;= 0; i--) { const d = drops[i]; d.vy += 220 * dt; d.x += d.vx * dt; d.y += d.vy * dt; if (d.vy &gt; 0 &amp;&amp; d.y &gt;= sy(d.x)) { surf.splash(d.x, -0.25); drops.splice(i, 1); } }   // tetes jatuh -&gt; riak kecil
+    surf.update(dt); bub.update(dt);
+    lit.clear(); wat.compose(buf, sc.sky, sc.under, sy);
+    for (const o of objs) { buf.disc(o.x, o.y, o.r, [58, 52, 78]); buf.disc(o.x - 0.5, o.y - 0.5, o.r - 1, [110, 106, 128]); buf.px(o.x - o.r * 0.4, o.y - o.r * 0.4, [207, 205, 210]); }
+    wat.tint(buf, sy); wat.snow(buf, t); bub.draw(buf, lit, 'back'); wat.surface(buf, lit, t, sy); bub.draw(buf, lit, 'front');
+    for (const d of drops) { buf.px(d.x, d.y, PX.WATER.HI); buf.px(d.x - d.vx * 0.02, d.y - d.vy * 0.02, PX.WATER.LIT); }
+    if (caus) wat.caustics(lit, t);
+    buf.flush(c); lit.flush(c);
+  });
+};</code></pre></details>
+<details class="code" open><summary>Kode: <code>src/code/53-demo-waterca.js</code></summary><pre><code class="language-js">// Demo air sel: tuang air / gambar tembok / hapus dengan menyeret. Warna menurut kedalaman dari permukaan (ramp 4 + dither), kilau di permukaan.
+PX.demos.waterca = (host) =&gt; {
+  const W = 128, H = 72, cv = PX.canvas(host, W, H, 768, false, 'Seret di atas kanvas untuk memakai alat'), c = cv.getContext('2d'), buf = new PX.Buf(W, H), p = PX.pointer(cv), sim = new PX.CAWater(W, H);
+  const RAMP = ['#0f3f6b', '#2f7fb6', '#68bfe6', '#c6f3ff'].map(PX.hex), STONE = ['#2b2a3a', '#4a4a5e', '#6e6f80'].map(PX.hex), BG = ['#0a0f1c', '#121a2e'].map(PX.hex);
+  let tool = 'water', faucet = true, t = 0; const dep = new Uint16Array(W);
+  const build = () =&gt; { sim.g.fill(0); for (let x = 0; x &lt; W; x++) sim.g[(H - 1) * W + x] = sim.g[(H - 2) * W + x] = 2; for (let y = 0; y &lt; H; y++) sim.g[y * W] = sim.g[y * W + W - 1] = 2; for (let x = 24; x &lt; 72; x++) sim.g[44 * W + x] = sim.g[45 * W + x] = 2; for (let y = 30; y &lt; 46; y++) sim.g[y * W + 90] = sim.g[y * W + 91] = 2; };
+  const ui = PX.ui(host);
+  ui.select('Alat', [{ label: 'tuang air', value: 'water' }, { label: 'tembok', value: 'wall' }, { label: 'hapus', value: 'erase' }], tool, (v) =&gt; (tool = v));
+  ui.range('Aliran samping', 1, 8, 1, sim.flow, (v) =&gt; (sim.flow = v)); ui.check('Keran', true, (v) =&gt; (faucet = v)); ui.button('Reset', build);
+  build();
+  PX.loop(host, (dt) =&gt; {
+    t += dt;
+    if (p.down &amp;&amp; p.in) for (let dy = -2; dy &lt;= 2; dy++) for (let dx = -2; dx &lt;= 2; dx++) {
+      const x = p.x + dx, y = p.y + dy, i = y * W + x; if (x &lt; 1 || y &lt; 0 || x &gt;= W - 1 || y &gt;= H - 2 || dx * dx + dy * dy &gt; 5) continue;
+      if (tool === 'water' &amp;&amp; sim.g[i] === 0) sim.g[i] = 1; else if (tool === 'wall' &amp;&amp; sim.g[i] !== 2) sim.g[i] = 2; else if (tool === 'erase') sim.g[i] = 0;
+    }
+    for (let k = 0; k &lt; 2; k++) { if (faucet) for (let x = 40; x &lt; 44; x++) if (sim.g[2 * W + x] === 0) sim.g[2 * W + x] = 1; sim.step(); }   // keran menyuntik tiap langkah -&gt; aliran utuh
+    dep.fill(0);
+    for (let y = 0; y &lt; H; y++) for (let x = 0; x &lt; W; x++) {
+      const v = sim.g[y * W + x];
+      if (v === 2) { buf.px(x, y, STONE[PX.tone(0.25 + 0.6 * PX.hash(x &gt;&gt; 1, y &gt;&gt; 1, 3), x, y, 3, 0.25)]); dep[x] = 0; }
+      else if (v === 1) {
+        const above = y &gt; 0 &amp;&amp; sim.g[(y - 1) * W + x] === 1, d = above ? dep[x] + 1 : 0; dep[x] = d;
+        let col = RAMP[PX.tone(1 - Math.min(1, d / 14), x, y, 4, 0.25)];
+        if (d === 0 &amp;&amp; (x + Math.floor(t * 6)) % 9 === 0) col = PX.WATER.HI;                                // kilau berjalan di permukaan
+        buf.px(x, y, col);
+      } else { buf.px(x, y, BG[PX.tone(y / H, x, y, 2, 0.25)]); dep[x] = 0; }
+    }
+    buf.flush(c);
+  });
+};</code></pre></details>
+
+<nav class="pn"><a href="glow.html">← Glow — cahaya additive di buffer terpisah</a><a href="explosion.html">Ledakan prosedural — roket dan neutron →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+</div>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>

@@ -84,6 +84,7 @@ Efek hidup terasa nyata bila bereaksi. Pola `feed(jumlah)`: tiap benda yang dise
 | Ledakan | cincin + puff disc | percikan | kilat + glow | [ledakan](explosion.html) |
 | Api | disc membesar saat menua | asap | additive | [api](fire.html) |
 | Hujan | garis jatuh 3 lapis | percikan | — | [hujan](rain.html) |
+| Air, gelembung, percikan | permukaan berpegas / sel | tetes, gelembung | caustic | [fluida](fluid-system.html), [texturing air](water-texturing.html) |
 | Tekstur material | height + ramp | — | — | [texturing](pixel-texturing.html) |
 
 ## Prosedur untuk AI saat diminta efek baru

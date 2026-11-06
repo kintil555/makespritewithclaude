@@ -5,11 +5,11 @@
   "categories": {
     "rendering": {
       "title": "Teknik Rendering",
-      "desc": "Dari render halus ke grid piksel, palet, dithering, texturing, buffer, sprite sheet, komposit sprite, parallax."
+      "desc": "Dari render halus ke grid piksel, palet, dithering, texturing (termasuk air), buffer, sprite sheet, komposit sprite, parallax."
     },
     "efek": {
       "title": "Efek (VFX)",
-      "desc": "Resep VFX, tracer, ledakan, lubang, api, hujan, bola neutron, pulsar & black hole — semua prosedural."
+      "desc": "Resep VFX, tracer, ledakan, lubang, api, hujan, fluida, gelembung, bola neutron, pulsar & black hole — semua prosedural."
     },
     "karakter": {
       "title": "Karakter Prosedural",
@@ -101,6 +101,18 @@
       ]
     },
     {
+      "slug": "water-texturing",
+      "title": "Texturing air piksel — tint kedalaman, permukaan, caustic, dan tile top-down",
+      "category": "rendering",
+      "summary": "Air terdiri dari beberapa lapis sederhana yang ditumpuk — tint 4 tingkat, garis permukaan, anyaman caustic dari sinus, serpihan mengambang, dan tile top-down 2 lapis yang di-scroll — semuanya di grid integer dengan ramp biru dan dither Bayer.",
+      "html": "https://makespritewithclaude.pages.dev/articles/water-texturing.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/water-texturing.md",
+      "code": [
+        "https://makespritewithclaude.pages.dev/src/code/16-water.js",
+        "https://makespritewithclaude.pages.dev/src/code/51-demo-water.js"
+      ]
+    },
+    {
       "slug": "parallax",
       "title": "Parallax berlapis — kedalaman dari faktor kecepatan",
       "category": "rendering",
@@ -140,6 +152,19 @@
       "markdown": "https://makespritewithclaude.pages.dev/md/glow.md",
       "code": [
         "https://makespritewithclaude.pages.dev/src/code/12-light.js"
+      ]
+    },
+    {
+      "slug": "fluid-system",
+      "title": "Sistem fluida piksel — permukaan berpegas, gelembung, air sel, benda apung",
+      "category": "efek",
+      "summary": "Tiga model fluida murah untuk piksel — permukaan 1D berpegas (kolam, percikan), gelembung dari ventilasi (naik, goyang, menyatu, pecah), dan air sel 2D (automata) — plus benda apung/tenggelam dan cara menggabungkannya dengan texturing air.",
+      "html": "https://makespritewithclaude.pages.dev/articles/fluid-system.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/fluid-system.md",
+      "code": [
+        "https://makespritewithclaude.pages.dev/src/code/17-fluid.js",
+        "https://makespritewithclaude.pages.dev/src/code/52-demo-fluid.js",
+        "https://makespritewithclaude.pages.dev/src/code/53-demo-waterca.js"
       ]
     },
     {

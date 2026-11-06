@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Texturing air piksel — tint kedalaman, permukaan, caustic, dan tile top-down — Make Sprite With Claude</title>
+<meta name="description" content="Air terdiri dari beberapa lapis sederhana yang ditumpuk — tint 4 tingkat, garis permukaan, anyaman caustic dari sinus, serpihan mengambang, dan tile top-down 2 lapis yang di-scroll — semuanya di grid integer dengan ramp biru dan dither Bayer.">
+<link rel="canonical" href="https://makespritewithclaude.pages.dev/articles/water-texturing.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://makespritewithclaude.pages.dev/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://makespritewithclaude.pages.dev/md/water-texturing.md" title="Markdown">
+<meta property="og:title" content="Texturing air piksel — tint kedalaman, permukaan, caustic, dan tile top-down — Make Sprite With Claude"><meta property="og:description" content="Air terdiri dari beberapa lapis sederhana yang ditumpuk — tint 4 tingkat, garis permukaan, anyaman caustic dari sinus, serpihan mengambang, dan tile top-down 2 lapis yang di-scroll — semuanya di grid integer dengan ramp biru dan dither Bayer."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Texturing air piksel — tint kedalaman, permukaan, caustic, dan tile top-down","description":"Air terdiri dari beberapa lapis sederhana yang ditumpuk — tint 4 tingkat, garis permukaan, anyaman caustic dari sinus, serpihan mengambang, dan tile top-down 2 lapis yang di-scroll — semuanya di grid integer dengan ramp biru dan dither Bayer.","inLanguage":"id","url":"https://makespritewithclaude.pages.dev/articles/water-texturing.html","articleSection":"Teknik Rendering","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<div class="shell">
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#rendering">Teknik Rendering</a></p>
+<h1>Texturing air piksel — tint kedalaman, permukaan, caustic, dan tile top-down</h1><p class="lead">Air terdiri dari beberapa lapis sederhana yang ditumpuk — tint 4 tingkat, garis permukaan, anyaman caustic dari sinus, serpihan mengambang, dan tile top-down 2 lapis yang di-scroll — semuanya di grid integer dengan ramp biru dan dither Bayer.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/water-texturing.md">md/water-texturing.md</a></p>
+<p>Teknik dianalisis dari sistem gelembung Sprite Fusion (<code>bubbles.ts</code>, MIT): bagian tint, permukaan, caustic, dan serpihan. Kode di sini ditulis ulang agar bisa dipakai tanpa bergantung pada game tertentu.</p>
+<div class="demo" data-demo="water"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<p>Ganti tampilan, lalu matikan tiap lapisan (tint, caustic, serpihan) untuk melihat kontribusinya.</p>
+<h2>Prinsip</h2>
+<p>Air tidak bisa dibuat dengan satu tekstur. Air terbaca dari <strong>lapisan yang saling menimpa</strong>, masing-masing murah dan hanya memakai ramp kecil:</p>
+<ol>
+<li><strong>Tint kedalaman</strong> — warna biru gelap di atas apa pun yang ada di belakang, makin pekat ke bawah.</li>
+<li><strong>Garis permukaan</strong> — 1 piksel terang, 1 piksel rim, lalu pita bayangan yang menipis.</li>
+<li><strong>Caustic</strong> — jaring cahaya di dasar dan benda di bawah air.</li>
+<li><strong>Serpihan mengambang</strong> — titik kecil yang hanyut dan berkedip.</li>
+<li><strong>Gelembung / benda / percikan</strong> — lihat <a href="fluid-system.html">sistem fluida</a>.</li>
+</ol>
+<p>Urutan gambar: latar → benda bawah air → tint → serpihan → gelembung belakang → permukaan → gelembung depan → percikan → caustic (buffer cahaya, paling akhir).</p>
+<h2>Ramp air</h2>
+<table>
+<thead>
+<tr>
+<th>Peran</th>
+<th>Warna</th>
+<th>Dipakai untuk</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HI</code></td>
+<td><code>#ffffff</code></td>
+<td>kilau puncak, highlight gelembung</td>
+</tr>
+<tr>
+<td><code>LIT</code></td>
+<td><code>#c6f3ff</code></td>
+<td>garis permukaan, sisi terang</td>
+</tr>
+<tr>
+<td><code>RIM</code></td>
+<td><code>#68bfe6</code></td>
+<td>tepi, rim permukaan</td>
+</tr>
+<tr>
+<td><code>SHADE</code></td>
+<td><code>#2f7fb6</code></td>
+<td>sisi gelap, pita di bawah permukaan</td>
+</tr>
+<tr>
+<td><code>TINT</code></td>
+<td><code>#0b3550</code></td>
+<td>warna overlay kedalaman</td>
+</tr>
+</tbody></table>
+<p>Semakin dalam, air makin gelap, makin jenuh, dan bergeser ke biru-ungu; jangan hanya menurunkan kecerahan. Untuk jenis air lain ganti ramp (rawa: hijau zaitun, lava: lihat <a href="pixel-texturing.html">texturing</a>, racun: hijau neon), logikanya tetap.</p>
+<h2>1. Tint kedalaman 4 tingkat</h2>
+<p>Alpha kontinu menghasilkan ratusan warna di atas latar bertekstur. Kuantisasi kedalaman ke 4 tingkat (<code>PX.tone(k, x, y, 4, 0.25)</code>) dengan dither hanya di batas, lalu pakai tiap tingkat sebagai alpha overlay: <code>[0.10, 0.18, 0.26, 0.34]</code>. <code>k = (y − atas)/(dasar − atas)</code>. Hasilnya pita kedalaman yang terlihat disengaja, bukan gradient.</p>
+<h2>2. Garis permukaan</h2>
+<pre><code>sy    = round(atas + sin(0.11x + 1.6t)·A1 + sin(0.043x − 0.9t)·A2)     // 2 sinus beda frekuensi -&gt; tidak terasa berulang
+glint = sin(0.37x − 2.3t) · sin(0.13x + 1.1t) &gt; 0.55                    // perkalian 2 sinus = kilau yang berjalan acak
+piksel(x, sy)     = glint ? HI : LIT
+piksel(x, sy + 1) = RIM
+untuk k = 2..6: jika bayer(x, sy+k) &lt; 0.5 − 0.07k → SHADE              // pita yang menipis ke bawah
+</code></pre>
+<p><code>sy</code> selalu <strong>integer</strong>. Bila permukaan berasal dari simulasi (<a href="fluid-system.html">pegas</a>), ganti rumus sinus dengan tinggi kolom; sisanya sama. Setiap 4 kolom tambahkan <code>glow</code> kecil di bawah garis (0.09, naik ke 0.2 saat glint) agar permukaan terasa bercahaya.</p>
+<h2>3. Caustic: jaring dari dua medan sinus</h2>
+<p>Caustic adalah garis tempat nilai medan ≈ 0:</p>
+<pre><code>u  = 0.16x + 1.9·sin(0.12y + 0.9t)        v  = 0.19y + 1.9·sin(0.1x − 0.7t)
+n1 = sin(u) + sin(v)                       // 0 di sepanjang jalur yang berkelok -&gt; jaring
+n2 = sin(0.09x + 0.07y + 1.4·sin(0.15y − 0.6t)) + sin(0.11y − 0.05x + 1.4·sin(0.13x + 0.8t))
+f  = (max(0, 1 − |n1|·3) + 0.7·max(0, 1 − |n2|·3)) · k(y)
+</code></pre>
+<ul>
+<li><code>1 − |n|·3</code> mengubah &quot;dekat nol&quot; menjadi garis setebal sekitar 1/3 satuan.</li>
+<li><code>1.9·sin(...)</code> adalah <strong>warp</strong>: tanpanya garisnya kisi lurus; dengan warp menjadi jaring organik yang bergerak.</li>
+<li>Dua medan berbeda arah dijumlahkan, medan kedua 0.7× agar menjadi anyaman sekunder yang lebih redup.</li>
+<li><code>k(y)</code>: 1 di dasar, <code>0.18 + 0.32·(1 − kedalaman)</code> di atasnya — cahaya lebih kuat di dasar dan memudar ke permukaan.</li>
+<li><strong>Tiga tingkat via Bayer</strong>: <code>f &gt; 1.05</code> atau (<code>f &gt; 0.8</code> dan <code>bayer &lt; (f−0.8)/0.25</code>) → <code>LIT</code> ×0.3; <code>f &gt; 0.45</code> atau (<code>f &gt; 0.3</code> dan <code>bayer &lt; (f−0.3)/0.15</code>) → <code>RIM</code> ×0.15; selain itu tidak ada cahaya.</li>
+<li>Ditambahkan <strong>additive</strong> ke buffer cahaya (<code>PX.Light.add</code>), bukan menimpa piksel — sehingga warna benda di bawahnya tetap terbaca (<a href="glow.html">glow</a>).</li>
+</ul>
+<h2>4. Serpihan mengambang</h2>
+<p>Tanpa state: posisi dihitung dari <code>hash(i)</code> dan waktu. <code>y = atas + (y0 + (2.5 + 1.5·sin(s))·t) mod tinggi</code>, <code>x = x0 + 6·sin(0.3t + s)</code>. Gambar bila <code>bayer(x,y) ≤ 0.55 + 0.3·sin(1.3t + s)</code> (berkedip tanpa alpha). Satu dari tiga warna redup <code>#5f8a9a #7fa3a8 #4c6f86</code>; puncak kedipan memakai <code>LIT</code>. Sekitar 90 titik untuk layar 160×90.</p>
+<h2>5. Air top-down (tile)</h2>
+<p>Untuk lantai air dilihat dari atas, pakai <a href="pixel-texturing.html">tile hasil bake</a> bermaterial <code>water</code>: jaring terang = batas sel Worley (<code>1 − edge/0.3</code>, dikuadratkan), plus fbm halus. Animasi tanpa menghitung ulang noise:</p>
+<ul>
+<li>Gambar <strong>dua</strong> salinan tile (seed berbeda) yang digeser <strong>berlawanan arah</strong>; offset integer per frame (<code>floor(t·4)</code>).</li>
+<li>Gabung dalam domain indeks: jika lapis B terang dan lapis A terang → indeks tertinggi (kilau putih); jika hanya B terang → naikkan ke tingkat terang menengah; selain itu pakai A.</li>
+<li>Kecepatan rendah (2–4 piksel/dtk). Gerak cepat dan non-integer menghilangkan kesan piksel.</li>
+</ul>
+<pre><code class="language-js">// satu piksel hasil gabungan (n = jumlah warna ramp)
+let i = a;
+if (b &gt;= n - 2) i = a &gt;= n - 2 ? n - 1 : Math.max(a, n - 3);
+</code></pre>
+<h2>Performa</h2>
+<ul>
+<li><strong>Caustic</strong> adalah bagian termahal (≈ 6 <code>sin</code> per piksel). Batasi ke kotak air, atau hitung tiap 2 frame, atau di setengah resolusi lalu <code>drawImage</code> 2×.</li>
+<li>Tint dan permukaan hanya melintasi kolom area air; tile top-down hanya indeks dan tidak memanggil fungsi matematika.</li>
+<li>Latar (langit dan dinding/dasar) di-bake sekali ke dua buffer; tiap frame hanya memilih salah satu per kolom menurut tinggi permukaan (<code>compose</code>).</li>
+</ul>
+<h2>Checklist untuk AI</h2>
+<ol>
+<li>Ramp air 4–5 warna dari putih ke biru gelap, hue bergeser; tidak ada <code>rgba()</code> kontinu.</li>
+<li>Tint kedalaman dikuantisasi 4 tingkat dengan dither di batas.</li>
+<li>Permukaan: 1px terang, 1px rim, pita bayangan Bayer; posisi <code>sy</code> integer.</li>
+<li>Caustic = nol-persilangan dua medan sinus ber-warp, additive di buffer cahaya, kuat di dasar.</li>
+<li>Animasi top-down = dua tile digeser berlawanan, offset integer.</li>
+<li>Semua pola Bayer memakai koordinat layar agar stabil saat kamera diam.</li>
+<li>Periksa visual diperbesar; matikan lapisan satu per satu untuk memastikan tiap lapis berguna.</li>
+</ol>
+<h2>Kode</h2>
+<details class="code" open><summary>Kode: <code>src/code/16-water.js</code></summary><pre><code class="language-js">// 16-water.js — texturing air: tint kedalaman 4 tingkat, garis permukaan, caustic (anyaman sinus), serpihan mengambang, dan tile top-down yang di-scroll 2 lapis.
+PX.WATER = { HI: PX.hex('#ffffff'), LIT: PX.hex('#c6f3ff'), RIM: PX.hex('#68bfe6'), SHADE: PX.hex('#2f7fb6'), TINT: PX.hex('#0b3550'), SPECK: ['#5f8a9a', '#7fa3a8', '#4c6f86'].map(PX.hex) };
+PX.Light.prototype.add = function (x, y, c, k) {            // tambah 1 piksel cahaya (additive) tanpa profil glow
+  if (x &lt; 0 || y &lt; 0 || x &gt;= this.w || y &gt;= this.h) return;
+  const o = (y * this.w + x) * 3; this.d[o] += c[0] * k; this.d[o + 1] += c[1] * k; this.d[o + 2] += c[2] * k;
+};
+PX.MAT.water = { ramp: ['#0e3a5c', '#1a6a9a', '#3aa0cc', '#8fe0f0', '#ffffff'], f: (x, y, S, s) =&gt; {   // tile top-down: jaring terang = batas sel Worley
+  const w = PX.worley(x / 8, y / 8, s, S / 8), line = Math.max(0, 1 - w[1] / 0.3);
+  return 0.18 + 0.22 * PX.fbm(x / 4, y / 4, s + 4, S / 4) + 0.62 * line * line;
+} };
+
+// Latar kolam: langit senja + dinding bawah air + dasar pasir. Dua buffer; compose() memilih salah satunya per kolom menurut tinggi permukaan.
+PX.poolScene = (W, H, top, floorY) =&gt; {
+  const sky = new PX.Buf(W, H), under = new PX.Buf(W, H);
+  const SKY = ['#1b1030', '#3a2250', '#74386a', '#c0566a', '#f08a5a'].map(PX.hex), WALL = ['#0a2236', '#123650', '#1b4a6a'].map(PX.hex), SAND = ['#3a2f3a', '#6a5648', '#a08462', '#d2b383'].map(PX.hex);
+  for (let y = 0; y &lt; H; y++) for (let x = 0; x &lt; W; x++) {
+    sky.px(x, y, SKY[PX.tone(y / (top + 4) + (PX.fbm(x / 30, y / 8, 3, 0, 0, 2) - 0.5) * 0.25, x, y, 5, 0.25)]);
+    const fl = floorY(x);
+    if (y &gt;= fl) under.px(x, y, SAND[PX.tone(0.25 + 0.45 * PX.fbm(x / 6, y / 3, 7, 0, 0, 3) + (y === Math.round(fl) ? 0.25 : 0), x, y, 4, 0.25)]);
+    else under.px(x, y, WALL[PX.tone(0.2 + 0.5 * PX.fbm(x / 18, y / 10, 4, 0, 0, 3), x, y, 3, 0.25)]);
+  }
+  return { sky, under };
+};
+
+PX.Water = class {
+  constructor(x0, x1, top, bottom, seed = 1) {
+    Object.assign(this, { x0, x1, top, bottom, pal: PX.WATER });
+    this.specks = Array.from({ length: 90 }, (_, i) =&gt; ({ x: x0 + PX.hash(i, 1, seed) * (x1 - x0), y: PX.hash(i, 2, seed) * (bottom - top), s: PX.hash(i, 3, seed) * 100, c: i % 3 }));
+  }
+  surf(x, t) { return this.top + Math.sin(x * 0.11 + t * 1.6) * 0.6 + Math.sin(x * 0.043 - t * 0.9) * 0.8; }   // permukaan default: 2 sinus beda frekuensi
+  compose(buf, sky, under, surfY) {                                                                        // atas permukaan = langit, bawah = isi kolam
+    for (let x = 0; x &lt; buf.w; x++) { const s = Math.round(surfY(x)); for (let y = 0; y &lt; buf.h; y++) buf.d[y * buf.w + x] = y &lt; s ? sky.d[y * buf.w + x] : under.d[y * buf.w + x]; }
+  }
+  tint(buf, surfY) {                                                    // lapisan warna air: 4 tingkat kedalaman, batasnya didither (bukan alpha kontinu)
+    const A = [0.1, 0.18, 0.26, 0.34], span = Math.max(1, this.bottom - this.top);
+    for (let x = this.x0; x &lt; this.x1; x++) for (let y = Math.max(0, Math.ceil(surfY(x))); y &lt; this.bottom + 4; y++) buf.px(x, y, this.pal.TINT, A[PX.tone((y - this.top) / span, x, y, 4, 0.25)]);
+  }
+  surface(buf, lit, t, surfY) {                                         // garis permukaan: terang 1px, rim 1px, lalu pita bayangan yang menipis (Bayer)
+    const P = this.pal;
+    for (let x = this.x0; x &lt; this.x1; x++) {
+      const sy = Math.round(surfY(x)), glint = Math.sin(x * 0.37 - t * 2.3) * Math.sin(x * 0.13 + t * 1.1) &gt; 0.55;
+      buf.px(x, sy, glint ? P.HI : P.LIT); buf.px(x, sy + 1, P.RIM);
+      for (let k = 2; k &lt; 7; k++) if (PX.bayer(x, sy + k) &lt; 0.5 - k * 0.07) buf.px(x, sy + k, P.SHADE);
+      if ((x &amp; 3) === 0) lit.glow(x, sy + 2, 7, P.LIT, glint ? 0.2 : 0.09);
+    }
+  }
+  caustics(lit, t) {                                                    // anyaman cahaya: garis tempat sin(u)+sin(v) ≈ 0, dua medan ber-warp, 3 tingkat via Bayer, memudar ke atas kecuali di dasar
+    const P = this.pal, gy = this.bottom, top = this.top;
+    for (let y = top; y &lt;= gy + 6; y++) {
+      const k = y &gt;= gy - 1 ? 1 : 0.18 + 0.32 * (1 - (y - top) / Math.max(1, gy - top));
+      for (let x = this.x0; x &lt; this.x1; x++) {
+        const u = x * 0.16 + 1.9 * Math.sin(y * 0.12 + t * 0.9), v = y * 0.19 + 1.9 * Math.sin(x * 0.1 - t * 0.7);
+        const n1 = Math.sin(u) + Math.sin(v), n2 = Math.sin(x * 0.09 + y * 0.07 + 1.4 * Math.sin(y * 0.15 - t * 0.6)) + Math.sin(y * 0.11 - x * 0.05 + 1.4 * Math.sin(x * 0.13 + t * 0.8));
+        const f = (Math.max(0, 1 - Math.abs(n1) * 3) + 0.7 * Math.max(0, 1 - Math.abs(n2) * 3)) * k, d = PX.bayer(x, y);
+        if (f &gt; 1.05 || (f &gt; 0.8 &amp;&amp; d &lt; (f - 0.8) / 0.25)) lit.add(x, y, P.LIT, 0.3);
+        else if (f &gt; 0.45 || (f &gt; 0.3 &amp;&amp; d &lt; (f - 0.3) / 0.15)) lit.add(x, y, P.RIM, 0.15);
+      }
+    }
+  }
+  snow(buf, t) {                                                        // serpihan mengambang (marine snow): hanyut pelan, berkedip lewat ambang Bayer
+    const h = this.bottom - this.top;
+    for (const s of this.specks) {
+      const x = Math.floor(s.x + 6 * Math.sin(t * 0.3 + s.s)), y = Math.floor(this.top + ((s.y + (2.5 + 1.5 * Math.sin(s.s)) * t) % h)), tw = Math.sin(t * 1.3 + s.s);
+      if (PX.bayer(x, y) &gt; 0.55 + 0.3 * tw) continue;
+      buf.px(x, y, tw &gt; 0.85 ? this.pal.LIT : this.pal.SPECK[s.c]);
+    }
+  }
+};
+
+// Air top-down: 2 tile yang sama (seed beda) digeser berlawanan, offset INTEGER per frame; piksel terang yang tumpang tindih jadi kilau putih.
+PX.waterTile = (buf, A, B, t) =&gt; {
+  const S = A.S, n = A.pal.length, ax = Math.floor(t * 4), ay = Math.floor(t * 2), bx = Math.floor(t * 3), by = Math.floor(t * 3);
+  for (let y = 0; y &lt; buf.h; y++) for (let x = 0; x &lt; buf.w; x++) {
+    const a = A.idx[((y + ay) % S) * S + ((x + ax) % S)], b = B.idx[(((y - by) % S + S) % S) * S + (((x - bx) % S + S) % S)];
+    let i = a; if (b &gt;= n - 2) i = a &gt;= n - 2 ? n - 1 : Math.max(a, n - 3);
+    buf.px(x, y, A.pal[i]);
+  }
+};</code></pre></details>
+<details class="code" open><summary>Kode: <code>src/code/51-demo-water.js</code></summary><pre><code class="language-js">// Demo texturing air: penampang samping (tint + permukaan + caustic + serpihan) atau tile top-down dua lapis. Matikan tiap lapisan untuk melihat kontribusinya.
+PX.demos.water = (host) =&gt; {
+  const W = 160, H = 90, TOP = 24, FLOOR = 78, cv = PX.canvas(host, W, H, 800), c = cv.getContext('2d'), buf = new PX.Buf(W, H), lit = new PX.Light(W, H);
+  const wat = new PX.Water(0, W, TOP, FLOOR), sc = PX.poolScene(W, H, TOP, () =&gt; FLOOR), A = PX.bakeTex('water', 32, { emb: 0, seed: 2 }), B = PX.bakeTex('water', 32, { emb: 0, seed: 9 });
+  let mode = 'side', tint = true, caus = true, snow = true, t = 0;
+  const ui = PX.ui(host);
+  ui.select('Tampilan', [{ label: 'penampang samping', value: 'side' }, { label: 'tile top-down (2 lapis scroll)', value: 'top' }], mode, (v) =&gt; (mode = v));
+  ui.check('Tint kedalaman', true, (v) =&gt; (tint = v)); ui.check('Caustic', true, (v) =&gt; (caus = v)); ui.check('Serpihan', true, (v) =&gt; (snow = v));
+  PX.loop(host, (dt) =&gt; {
+    t += dt;
+    if (mode === 'top') { PX.waterTile(buf, A, B, t); buf.flush(c); return; }
+    const sy = (x) =&gt; wat.surf(x, t);
+    lit.clear(); wat.compose(buf, sc.sky, sc.under, sy);
+    if (tint) wat.tint(buf, sy);
+    if (snow) wat.snow(buf, t);
+    wat.surface(buf, lit, t, sy);
+    if (caus) wat.caustics(lit, t);
+    buf.flush(c); lit.flush(c);
+  });
+};</code></pre></details>
+
+<nav class="pn"><a href="pixel-texturing.html">← Texturing pixel art prosedural — ramp, klaster, tile, dan bake efisien</a><a href="parallax.html">Parallax berlapis — kedalaman dari faktor kecepatan →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+</div>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>
