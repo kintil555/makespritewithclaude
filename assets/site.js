@@ -3,7 +3,7 @@ document.querySelectorAll('[data-demo]').forEach((el) => {
   const fn = window.PX && PX.demos[el.dataset.demo];
   if (!fn) return;
   el.textContent = ''; el.classList.add('live');
-  try { fn(el); } catch (e) { el.textContent = 'Demo gagal: ' + e.message; console.error(e); }
+  try { fn(el); if (PX.gifAuto) PX.gifAuto(el); } catch (e) { el.textContent = 'Demo gagal: ' + e.message; console.error(e); }
 });
 document.querySelectorAll('details.code').forEach((d) => {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'copy'; b.textContent = 'Salin';

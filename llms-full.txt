@@ -302,10 +302,12 @@ PX.canvas = (host, w, h, cssW, smooth = false, caption = '') => {
 // Loop animasi: berhenti otomatis saat demo di luar layar
 PX.loop = (host, fn) => {
   let on = true, last = performance.now(), t = 0;
+  const h = { rec: false, step(dt) { t += dt; fn(dt, t); } };                    // rec: dijeda saat perekaman GIF; step: maju 1 langkah simulasi dengan dt tetap
+  (host._loops = host._loops || []).push(h);
   new IntersectionObserver((e) => (on = e[0].isIntersecting)).observe(host);
   const f = (now) => {
     const dt = PX.clamp((now - last) / 1000, 0, 0.05); last = now;
-    if (on) { t += dt; fn(dt, t); }
+    if (on && !h.rec) h.step(dt);
     requestAnimationFrame(f);
   };
   requestAnimationFrame(f);
@@ -2647,7 +2649,7 @@ PX.demos.pulsar = (host) => {
     c.putImageData(img, 0, 0); lit.flush(c);
   };
   PX.loop(host, (dt, t) => draw(t));
-  PX.gifButton(host, cv, draw, { loop: LOOP, fps: 25, scale: 4, name: 'pulsar' });   // unduh GIF: 6 detik @25 fps, frame ke-150 = frame 0 (loop mulus)
+  PX.gifButton(host, cv, draw, { loop: LOOP, scale: 4, name: 'pulsar' });   // unduh GIF: 6 detik @50 fps, frame ke-300 = frame 0 (loop mulus)
 };
 ```
 
@@ -2701,27 +2703,47 @@ PX.gif = (frames, w, h, delayCs, scale = 1) => {                                
   return new Blob([new Uint8Array(out)], { type: 'image/gif' });
 };
 
-// Tombol unduh: render `loop` detik pada `fps`, memanggil draw(t) lalu membaca kanvas (dikomposit di atas warna latar CSS). draw HARUS periodik dalam `loop`.
+// Perekam: frameFn(k) memajukan/menggambar frame ke-k pada kanvas cv; hasil dibaca, dikomposit di atas warna latar `bg`, lalu dienkode. Tombol menampilkan progres.
+PX.gifRecord = async (btn, cv, frameFn, { n, fps, scale, bg, name }) => {
+  if (btn.disabled) return; btn.disabled = true; const label = btn.textContent;
+  try {
+    const c = cv.getContext('2d', { willReadFrequently: true }), frames = [];
+    for (let k = 0; k < n; k++) {
+      frameFn(k);
+      const d = c.getImageData(0, 0, cv.width, cv.height).data, f = new Uint8ClampedArray(d.length);
+      for (let i = 0; i < d.length; i += 4) { const a = d[i + 3] / 255; f[i] = d[i] * a + bg[0] * (1 - a); f[i + 1] = d[i + 1] * a + bg[1] * (1 - a); f[i + 2] = d[i + 2] * a + bg[2] * (1 - a); f[i + 3] = 255; }
+      frames.push(f);
+      if (k % 10 === 9) { btn.textContent = `Merender ${Math.round(((k + 1) / n) * 100)}%`; await new Promise((r) => setTimeout(r)); }
+    }
+    btn.textContent = 'Menyusun GIF…'; await new Promise((r) => setTimeout(r, 20));
+    const url = URL.createObjectURL(PX.gif(frames, cv.width, cv.height, Math.round(100 / fps), scale)), a = document.createElement('a');   // delay GIF satuan 1/100 s: 50 fps = 2 (batas terkecil yang dihormati browser)
+    a.href = url; a.download = name + '.gif'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) { console.error(e); alert('Gagal membuat GIF: ' + e.message); }
+  btn.textContent = label; btn.disabled = false;
+};
+PX.gifBtn = (host, run) => {                                                       // tombol di bar kontrol demo (pakai bar yang sudah ada, kalau tidak buat baru)
+  let bar = host.querySelector(':scope > .ctl'); if (!bar) { PX.ui(host); bar = host.querySelector(':scope > .ctl'); }
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Unduh GIF'; b.onclick = () => run(b); bar.appendChild(b); host.dataset.gif = '1'; return b;
+};
+const GIF_FPS = 50;                                                                // GIF hanya punya resolusi 1/100 s -> 50 fps adalah yang tercepat yang dihormati browser (live ≈ 60 fps)
+
+// Demo periodik (frame ke-n == frame 0): draw(t) fungsi murni, `loop` detik, GIF berputar mulus.
 PX.gifButton = (host, cv, draw, o = {}) => {
-  const { loop = 6, fps = 25, scale = 4, bg = '#0a0a16', name = 'demo' } = o, bgc = PX.hex(bg), c = cv.getContext('2d', { willReadFrequently: true });
-  const b = PX.ui(host).button('Unduh GIF', async () => {
-    if (b.disabled) return; b.disabled = true;
-    try {
-      const n = Math.round(loop * fps), frames = [];
-      for (let k = 0; k < n; k++) {
-        draw(k / fps);                                                              // frame n identik dengan frame 0 -> loop mulus
-        const d = c.getImageData(0, 0, cv.width, cv.height).data, f = new Uint8ClampedArray(d.length);
-        for (let i = 0; i < d.length; i += 4) { const a = d[i + 3] / 255; f[i] = d[i] * a + bgc[0] * (1 - a); f[i + 1] = d[i + 1] * a + bgc[1] * (1 - a); f[i + 2] = d[i + 2] * a + bgc[2] * (1 - a); f[i + 3] = 255; }
-        frames.push(f);
-        if (k % 10 === 9) { b.textContent = `Merender ${Math.round(((k + 1) / n) * 100)}%`; await new Promise((r) => setTimeout(r)); }
-      }
-      b.textContent = 'Menyusun GIF…'; await new Promise((r) => setTimeout(r, 20));
-      const url = URL.createObjectURL(PX.gif(frames, cv.width, cv.height, Math.round(100 / fps), scale)), a = document.createElement('a');
-      a.href = url; a.download = name + '.gif'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch (e) { console.error(e); alert('Gagal membuat GIF: ' + e.message); }
-    b.textContent = 'Unduh GIF'; b.disabled = false;
+  const { loop = 6, fps = GIF_FPS, scale = 4, bg = '#0a0a16', name = 'demo' } = o;
+  return PX.gifBtn(host, (b) => PX.gifRecord(b, cv, (k) => draw(k / fps), { n: Math.round(loop * fps), fps, scale, bg: PX.hex(bg), name }));
+};
+
+// Demo apa saja yang memakai PX.loop (tidak harus loop mulus): merekam `sec` detik dengan langkah dt tetap 1/fps, melanjutkan dari keadaan simulasi saat ini.
+PX.gifAuto = (host, { sec = 5, fps = GIF_FPS } = {}) => {
+  const loops = host._loops; if (!loops || host.dataset.gif) return;
+  const cv = [...host.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0]; if (!cv) return;
+  const bgOf = (el) => { for (; el; el = el.parentElement) { const m = getComputedStyle(el).backgroundColor.match(/[\d.]+/g); if (m && (m.length < 4 || +m[3] > 0)) return m.slice(0, 3).map(Number); } return [255, 255, 255]; };
+  const scale = PX.clamp(Math.round(560 / cv.width), 1, 4), name = host.dataset.demo || 'demo';
+  PX.gifBtn(host, async (b) => {
+    loops.forEach((l) => (l.rec = true));
+    try { await PX.gifRecord(b, cv, () => loops.forEach((l) => l.step(1 / fps)), { n: Math.round(sec * fps), fps, scale, bg: bgOf(cv), name }); }
+    finally { loops.forEach((l) => (l.rec = false)); }
   });
-  return b;
 };
 ```
 

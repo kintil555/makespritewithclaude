@@ -112,10 +112,12 @@ PX.canvas = (host, w, h, cssW, smooth = false, caption = '') => {
 // Loop animasi: berhenti otomatis saat demo di luar layar
 PX.loop = (host, fn) => {
   let on = true, last = performance.now(), t = 0;
+  const h = { rec: false, step(dt) { t += dt; fn(dt, t); } };                    // rec: dijeda saat perekaman GIF; step: maju 1 langkah simulasi dengan dt tetap
+  (host._loops = host._loops || []).push(h);
   new IntersectionObserver((e) => (on = e[0].isIntersecting)).observe(host);
   const f = (now) => {
     const dt = PX.clamp((now - last) / 1000, 0, 0.05); last = now;
-    if (on) { t += dt; fn(dt, t); }
+    if (on && !h.rec) h.step(dt);
     requestAnimationFrame(f);
   };
   requestAnimationFrame(f);

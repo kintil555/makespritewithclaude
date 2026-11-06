@@ -91,5 +91,5 @@ PX.demos.pulsar = (host) => {
     c.putImageData(img, 0, 0); lit.flush(c);
   };
   PX.loop(host, (dt, t) => draw(t));
-  PX.gifButton(host, cv, draw, { loop: LOOP, fps: 25, scale: 4, name: 'pulsar' });   // unduh GIF: 6 detik @25 fps, frame ke-150 = frame 0 (loop mulus)
+  PX.gifButton(host, cv, draw, { loop: LOOP, scale: 4, name: 'pulsar' });   // unduh GIF: 6 detik @50 fps, frame ke-300 = frame 0 (loop mulus)
 };
