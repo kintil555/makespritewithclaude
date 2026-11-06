@@ -17,6 +17,7 @@ Catatan: kode di situs ini adalah JavaScript murni tanpa dependensi, berjalan di
 - [Ledakan prosedural berlapis](https://makespritewithclaude.pages.dev/md/explosion.md): Kilat putih, gumpalan bola api 5 lapis, sinar radiasi, gelombang kejut bergelombang, partikel, dan asap — dengan palet api atau neutron.
 - [Lubang, kawah, dan gosong pada dinding](https://makespritewithclaude.pages.dev/md/crater-hole.md): Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.
 - [Api dan asap dari partikel disc berlapis](https://makespritewithclaude.pages.dev/md/fire.md): Ramp 9 warna, partikel membesar saat menua, inti bergeser ke atas, highlight kecil, glow additive, dan asap.
+- [Hujan prosedural 3 lapis kedalaman](https://makespritewithclaude.pages.dev/md/rain.md): Tetes dua warna, tiga lapis kecepatan, kabut tanah ber-noise, percikan setengah elips, dan lapis depan yang menutupi karakter.
 - [Bola neutron dan pulsar (PSR)](https://makespritewithclaude.pages.dev/md/neutron-psr.md): Proyektil bola neutron biru dengan jejak, ledakan Cherenkov, dan pulsar ber-sinar menyapu dengan garis medan dipol.
 
 ## Karakter Prosedural

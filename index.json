@@ -122,6 +122,17 @@
       ]
     },
     {
+      "slug": "rain",
+      "title": "Hujan prosedural 3 lapis kedalaman",
+      "category": "efek",
+      "summary": "Tetes dua warna, tiga lapis kecepatan, kabut tanah ber-noise, percikan setengah elips, dan lapis depan yang menutupi karakter.",
+      "html": "https://makespritewithclaude.pages.dev/articles/rain.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/rain.md",
+      "code": [
+        "https://makespritewithclaude.pages.dev/src/code/47-demo-rain.js"
+      ]
+    },
+    {
       "slug": "neutron-psr",
       "title": "Bola neutron dan pulsar (PSR)",
       "category": "efek",
