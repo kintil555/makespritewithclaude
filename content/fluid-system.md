@@ -83,7 +83,7 @@ Aturan yang membuatnya benar: (a) **arah pindai kiri/kanan bergantian** tiap lan
 
 {{demo:waterca}}
 
-**Pewarnaan**: hitung kedalaman dari permukaan per kolom (pindai dari atas: sel air tanpa air di atas → `d = 0`, selain itu `d = d_atas + 1`). Warna `RAMP[tone(1 − min(1, d/14), x, y, 4, 0.25)]` dan kilau berjalan di permukaan (`(x + floor(6t)) % 9 == 0` → `HI`). Kedalaman dari *permukaan* membuat kolam dangkal tetap terang walaupun ada di dasar peta.
+**Pewarnaan**: pakai tampilan yang sama dengan demo kolam supaya ketiganya terlihat satu keluarga. Hitung kedalaman dari permukaan per kolom (pindai dari atas: sel air tanpa air di atas → `d = 0`, selain itu `d = d_atas + 1`). Isi sel air = piksel dinding bawah air dari `poolScene`, ditimpa `TINT` dengan alpha 4 tingkat menurut `tone(1 − min(1, d/14), x, y, 4, 0.25)`. Sel `d = 0` = `LIT` (kilau berjalan → `HI`), `d = 1` = `RIM`, `d = 2…6` = pita `SHADE` yang menipis lewat Bayer, sel kosong = langit. Caustic memakai `Water.caustics(lit, t, mask)` dengan `mask` = hanya sel air. Kedalaman dari *permukaan* membuat kolam dangkal tetap terang walaupun ada di dasar peta.
 
 **Kelemahan yang perlu diketahui**: permukaan sedikit berkedip (sel teratas bergerak ke samping), dan genangan tipis 1 sel tidak merata sempurna. Itu bisa diterima sebagai "kilau" di gaya piksel; jika tidak boleh, hanya izinkan gerak samping bila sel di atasnya air atau ada penurunan tinggi di tujuan.
 
