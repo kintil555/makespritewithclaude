@@ -4,17 +4,15 @@ PX.demos.tracer = (host) => {
   const GUN = { x: 16, y: 60 }, CORE = '#fffbd0', MIDS = '#ffd24a', DARK = '#a8841f';
   const bl = [], sp = [], fl = []; let cd = 0, kick = 0, ang = 0;
   const rays = (x, y, a, n, len, col) => { for (let i = 0; i < n; i++) { const q = a + (Math.random() - 0.5) * 1.3, l = len * (0.4 + Math.random() * 0.6); PX.line(c, x, y, x + Math.cos(q) * l, y + Math.sin(q) * l, col); } };
-  const glow = (x, y, r, col) => { c.fillStyle = col; for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) { const d = Math.hypot(i, j) / r; if (d <= 1 && (1 - d) * 0.55 > PX.bayer(x + i, y + j)) c.fillRect(x + i, y + j, 1, 1); } };
   const fire = (a) => { bl.push({ x: GUN.x + Math.cos(a) * 9, y: GUN.y + Math.sin(a) * 9, a, trav: 0 }); fl.push({ t: 0, a }); kick = 2; };
   const tracer = (b) => {                       // kepala 1px terang -> pasangan piksel tebal -> piksel tunggal gelap memudar
-    const ca = Math.cos(b.a), sa = Math.sin(b.a), len = Math.min(b.trav, 28), m = Math.max(Math.abs(ca), Math.abs(sa)),
+    const ca = Math.cos(b.a), sa = Math.sin(b.a), len = Math.min(b.trav, 11), m = Math.max(Math.abs(ca), Math.abs(sa)),
       N = Math.max(3, Math.round(len * m)), vert = Math.abs(sa) >= Math.abs(ca), ox = vert ? (ca >= 0 ? -1 : 1) : 0, oy = vert ? 0 : (sa >= 0 ? -1 : 1);
-    glow(Math.round(b.x), Math.round(b.y), 5, MIDS);
     for (let k = N; k >= 0; k--) {
       const t = k / N, x = Math.round(b.x - (ca / m) * k), y = Math.round(b.y - (sa / m) * k);
       if (k === 0) { c.globalAlpha = 1; c.fillStyle = CORE; c.fillRect(x, y, 1, 1); }
-      else if (t <= 0.5) { c.globalAlpha = 1; c.fillStyle = MIDS; c.fillRect(x, y, 1, 1); c.fillRect(x + ox, y + oy, 1, 1); }
-      else { c.globalAlpha = Math.max(0.4, 1 - (t - 0.5) * 1.1); c.fillStyle = DARK; c.fillRect(x, y, 1, 1); }
+      else if (t <= 0.55) { c.globalAlpha = 1; c.fillStyle = MIDS; c.fillRect(x, y, 1, 1); c.fillRect(x + ox, y + oy, 1, 1); }
+      else { c.globalAlpha = Math.max(0.55, 1 - (t - 0.55) * 1.2); c.fillStyle = DARK; c.fillRect(x, y, 1, 1); }
     }
     c.globalAlpha = 1;
   };
