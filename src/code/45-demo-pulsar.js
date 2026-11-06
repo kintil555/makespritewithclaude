@@ -72,11 +72,12 @@ PX.demos.pulsar = (host) => {
       const rim = PX.clamp((r2 - 0.45) / 0.55, 0, 1), fl = PX.hash(tx >> 1, ty >> 1, 91);                    // rim: 0 di tengah -> 1 di tepi; fl: bintik tetap di tekstur, jadi ikut berputar
       const sp = Math.min(1, TEX[ty * TW + tx] + CON[ty * TW + tx]), cn_ = CON[ty * TW + tx], pn = PX.hash(tx, ty, 123);                                              // sp: bercak sedikit (di tekstur); pn: butiran partikel halus per texel -> keduanya ikut berputar
       const sh = PX.clamp(ny * 0.8 + nx * 0.25, 0, 1) * rim;                                               // shading tipis di pinggir bawah (berdither)
-      const k = PX.clamp((0.62 + 0.2 * nz - 0.55 * sp - 0.3 * cn_ - 0.4 * sh) * (1 - 0.5 * rim * rim), 0, 1);                      // bola BERCAHAYA: tanpa arah cahaya; terang di tengah, makin gelap ke tepi
-      let ci = 2 + PX.tone(k, tx, ty, 4, 0.7);                                                                  // dither di koordinat TEKSTUR (bukan layar) -> pola dither ikut berputar
+      const k = PX.clamp((0.66 + 0.2 * nz - 0.55 * sp - 0.3 * cn_ - 0.3 * sh) * (1 - 0.35 * rim * rim), 0, 1);                      // bola BERCAHAYA: tanpa arah cahaya; terang di tengah, makin gelap ke tepi
+      let ci = 3 + PX.tone(k, tx, ty, 3, 0.7);                                                                  // dither di koordinat TEKSTUR (bukan layar) -> pola dither ikut berputar
       if (r2 < 0.72) { if (pn < 0.06) ci = Math.max(3, ci - 1); else if (pn > 0.97) ci = 5; }   // sedikit butiran putih-kebiruan di dalam bola (jarang), berputar bersama bola
       if (r2 > 0.6 && fl > 0.9) ci = fl > 0.96 ? 4 : 3;                                                   // sedikit putih di pinggiran (berputar bersama bola)
-      else if (r2 > 0.88) ci = Math.min(ci, fl > 0.5 ? 3 : 2);                                              // pinggiran luar: biru gelap
+      else if (r2 > 0.88) ci = Math.min(ci, 3);                                                             // pinggiran luar: biru muda (bukan biru gelap)
+      if (sh > 0.62 + 0.25 * PX.bayer(tx, ty)) ci = 2;                                                    // shading TIPIS di tepi bawah-kanan: hanya garis sempit berdither biru terang; sisa bola biru muda → putih
       put(X, Y, ci);
     }
     for (const f of front) put(f[0], f[1], f[2]);                                    // garis medan sisi depan menimpa bola
