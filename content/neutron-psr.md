@@ -9,7 +9,7 @@ summary: Proyektil bola neutron biru dengan jejak, ledakan Cherenkov, dan pulsar
 - Tepi yang gelap dinaikkan satu tingkat agar siluet terbaca di latar gelap.
 - **Jejak**: 18 disc di belakang, mengecil dan alpha `(1−u)^1.4`; 40% pertama warna terang.
 - 3 percikan piksel acak mengorbit bola tiap frame.
-- Mengenai target → ledakan neutron: bintang sinar yang melesat keluar lalu terkikis dari pangkal sambil berputar melambat, plus cincin kejut, riak, cahaya, dan getaran (lihat [ledakan](explosion.html)). Bola juga memancarkan cahaya kecil.
+- Mengenai target → ledakan neutron: sinar yang terlontar keluar lalu memudar (waktu lontarnya bertingkat, sebagian serentak, sebagian telat) sambil berputar melambat, plus cincin kejut, riak, cahaya, dan getaran (lihat [ledakan](explosion.html)). Bola juga memancarkan cahaya kecil.
 
 {{demo:neutron}}
 

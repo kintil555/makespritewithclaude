@@ -27,12 +27,13 @@ Cherenkov biru, lebih "bersih" dan geometris:
 1. **Haze**: disc radius `R(1+0.9e)` alpha 0.14 warna paling gelap.
 2. **Kilat**: 14% awal umur, disc putih membesar sambil memudar.
 3. **Gumpalan**: 10 lobus acak; tiap lobus = **5 disc konsentris** gelap → putih (radius `1, .86, .64, .42, .22`; alpha `.55, .7, .85, .95, 1`).
-4. **Sinar (teranimasi)**: 10 duri utama merata + jitter (panjang `1.4–2.5R`, pangkal tebal 3–5 piksel yang meruncing) dan 22 sinar pendek acak, dari `0.3R`. Tiap sinar adalah ruas `[ekor, kepala]` dan **sekali jalan, tanpa memantul**:
-   - **kepala** melesat keluar dengan ease-out kubik di paruh awal umur sinar: `head = Lmaks·(1 − (1 − min(1, ru/0.5))³)`;
-   - **ekor** mengejar dari pangkal: `tail = head·ru^1.5`, sehingga sinar muncul penuh lalu langsung terkikis dari pangkal sampai habis (panjang tidak pernah naik lagi);
-   - terang di kepala (putih), redup di ekor; alpha `(1 − ru)^0.5` turun satu arah;
-   - **putaran tidak linear**: sudut seluruh bintang `spin·(1 − (1 − u)³)` (ease-out kubik: cepat di awal, melambat sampai berhenti saat sinar habis), tiap sinar dengan faktor `0.85–1.15` agar tidak kaku;
-   - 4% piksel dilewati acak tiap frame supaya tepinya bergerigi. Tidak ada `sin` pada panjang atau sudut — itu yang membuat sinar terlihat memantul.
+4. **Sinar (teranimasi)**: 10 duri utama merata + jitter (panjang `1.4–2.5R`) dan 22 sinar pendek acak, dari `0.3R`. Tiap sinar adalah ruas `[ekor, kepala]` yang **dilontarkan keluar lalu memudar**, sekali jalan:
+   - **kepala** melesat dengan ease-out kubik, `head = Lmaks·(1 − (1 − ru)³)`: cepat di awal, melambat di ujung;
+   - **ekor** menyusul dengan jarak tetap, `tail = max(0, head − 0.5·Lmaks)`: sinar tumbuh dari pusat, lalu terlempar sebagai ruas yang bergeser keluar (bukan menciut ke pangkal);
+   - alpha `(1 − ru)^1.3` turun satu arah; terang di kepala, redup di ekor; duri utama berbentuk komet (kepala 3 piksel meruncing);
+   - **waktu lontar tidak serempak**: `t0` diambil dari campuran — 40% serentak (`0–0.02`), 30% sedikit telat (`0.05–0.1`), 30% lebih telat (`0.11–0.2` dari umur ledakan) — dan durasi tiap sinar juga beda (`0.35–0.65`), jadi lontarannya bergelombang;
+   - **putaran tidak linear**: sudut seluruh bintang `spin·(1 − (1 − u)³)` (ease-out kubik), tiap sinar dengan faktor `0.85–1.15`;
+   - 4% piksel dilewati acak tiap frame supaya tepinya bergerigi. Tanpa `sin` pada panjang atau sudut, supaya tidak memantul.
 5. **Gelombang kejut**: 2 cincin dengan radius `rr·(1 + 0.07·sin3θ + 0.05·sin5θ + 0.03·sin9θ)` + jitter, supaya tidak bulat sempurna.
 6. **Kilau silang**: 22% awal umur, 4 garis tipis (kiri/kanan/atas/bawah) dengan alpha berkedip.
 7. **Cincin riak ketiga**: tipis, lebih lambat, radius `R(0.3 + 2.6e)`; riaknya `sin(7θ − 9t)` merambat di sepanjang cincin.
@@ -68,10 +69,11 @@ PX.Blast = class {
   constructor(x, y, R, pal = PX.PALS.api) {
     const r = Math.random, rg = (a, b) => a + r() * (b - a); this.x = Math.round(x); this.y = Math.round(y); this.R = R; this.t = 0; this.life = 1.05 + r() * 0.25; this.shake = 1;
     this.c = pal.c.map(PX.hex); this.sm = pal.smoke.map(PX.hex);
-    // sinar: 10 duri utama (merata + jitter, tebal, panjang) + 22 sinar pendek acak. Tiap sinar = ruas [ekor, kepala]: kepala melesat keluar, ekor mengejar dari pangkal, lalu lenyap (tanpa memantul).
+    // sinar: 10 duri utama (merata + jitter, tebal, panjang) + 22 sinar pendek acak. Tiap sinar = ruas [ekor, kepala] yang dilontarkan keluar lalu memudar; waktu lontarnya bertingkat (sebagian serentak, sebagian telat).
+    const dl = () => { const q = r(); return q < 0.4 ? rg(0, 0.02) : q < 0.7 ? rg(0.05, 0.1) : rg(0.11, 0.2); };   // waktu lontar: 40% serentak, 30% sedikit telat, 30% lebih telat
     this.rays = [
-      ...Array.from({ length: 10 }, (_, i) => ({ a: (i / 10) * 6.283 + rg(-0.15, 0.15), len: rg(1.4, 2.5), big: true, t0: rg(0, 0.05), sr: rg(0.85, 1.15) })),
-      ...Array.from({ length: 22 }, () => ({ a: r() * 6.283, len: rg(0.4, 1.3), big: false, t0: rg(0.02, 0.14), sr: rg(0.85, 1.15) })),
+      ...Array.from({ length: 10 }, (_, i) => ({ a: (i / 10) * 6.283 + rg(-0.15, 0.15), len: rg(1.4, 2.5), big: true, t0: dl(), dur: rg(0.45, 0.65), sr: rg(0.85, 1.15) })),
+      ...Array.from({ length: 22 }, () => ({ a: r() * 6.283, len: rg(0.4, 1.3), big: false, t0: dl(), dur: rg(0.35, 0.55), sr: rg(0.85, 1.15) })),
     ];
     this.spin = (r() < 0.5 ? -1 : 1) * rg(1.4, 2.4); this.tips = [];
     this.lobes = Array.from({ length: 10 }, () => ({ a: r() * 6.283, d: r() * 0.75, r: 0.2 + r() * 0.28, t0: r() * 0.22, tl: 0.45 + r() * 0.4 }));
@@ -108,16 +110,16 @@ PX.Blast = class {
         [[0, 1, 0.55], [1, 0.86, 0.7], [2, 0.64, 0.85], [3, 0.42, 0.95], [4, 0.22 * (1 - lu * 0.6), 1]].forEach(([ci, k, A]) => b.disc(lx, ly, sz * k, c[ci], al * A));
       }
       const spin = this.spin * (1 - Math.pow(1 - Math.min(1, u * 1.15), 3));              // putaran ease-out kubik: cepat di awal, melambat sampai berhenti saat sinar habis (tidak linear)
-      for (const r of this.rays) {                                                        // sinar: muncul lalu langsung lenyap, searah (tanpa tumbuh-menciut-tumbuh)
-        const ru = (u - r.t0) / (0.78 - r.t0); if (ru < 0 || ru >= 1) continue;
-        const Lm = R * r.len * 1.5, head = Lm * (1 - Math.pow(1 - Math.min(1, ru / 0.5), 3)), tail = head * Math.pow(ru, 1.5);   // kepala melesat (ease-out), ekor mengejar dari pangkal
+      for (const r of this.rays) {                                                        // sinar: dilontarkan dari pusat (ease-out), ruas panjang tetap ikut terlempar, memudar; waktu lontar tiap sinar beda
+        const ru = (u - r.t0) / r.dur; if (ru < 0 || ru >= 1) continue;
+        const Lm = R * r.len * 1.5, head = Lm * (1 - Math.pow(1 - ru, 3)), tail = Math.max(0, head - Lm * (r.big ? 0.5 : 0.6));   // kepala melesat lalu melambat; ekor menyusul dengan jarak tetap -> ruas terlempar keluar
         if (head - tail < 1) continue;
-        const ang = r.a + spin * r.sr, ca = Math.cos(ang), sa = Math.sin(ang), s0 = R * 0.3, al = Math.pow(1 - ru, 0.5);
+        const ang = r.a + spin * r.sr, ca = Math.cos(ang), sa = Math.sin(ang), s0 = R * 0.3, al = Math.pow(1 - ru, 1.3);
         for (let d = tail; d < head; d += 0.8) {
-          if (rnd() < 0.04) continue; const fv = (d - tail) / (head - tail), g = d / Lm, k = Math.min(1, (0.3 + 0.9 * fv) * al);   // terang di kepala, redup di ekor
+          if (rnd() < 0.04) continue; const fv = (d - tail) / (head - tail), k = Math.min(1, (0.3 + 0.9 * fv) * al);          // terang di kepala, redup di ekor
           const col = fv > 0.8 ? c[4] : fv > 0.35 ? c[3] : c[1], px = cx + ca * (s0 + d), py = cy + sa * (s0 + d);
           b.px(px, py, col, k);
-          if (r.big) { const w = g < 0.35 ? 1 : g < 0.7 ? 0.6 : 0; if (w) { const cc = g < 0.35 ? c[3] : c[2]; b.px(px - sa, py + ca, cc, k * w); b.px(px + sa, py - ca, cc, k * w); if (g < 0.12) { b.px(px - 2 * sa, py + 2 * ca, c[1], k * 0.6); b.px(px + 2 * sa, py - 2 * ca, c[1], k * 0.6); } } }   // duri utama: pangkal tebal 3-5 piksel
+          if (r.big) { const w = fv > 0.55 ? 1 : fv > 0.2 ? 0.6 : 0; if (w) { const cc = fv > 0.55 ? c[3] : c[2]; b.px(px - sa, py + ca, cc, k * w); b.px(px + sa, py - ca, cc, k * w); } }   // duri utama: berbentuk komet, kepala 3 piksel meruncing ke ekor
         }
         const tx = cx + ca * (s0 + head), ty = cy + sa * (s0 + head); this.tips.push(tx, ty, al); if (r.big) b.px(tx, ty, c[4], al * 0.9);
       }
