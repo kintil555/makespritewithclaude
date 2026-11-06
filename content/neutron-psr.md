@@ -25,7 +25,7 @@ Bintang neutron berputar dengan sumbu magnet miring:
 - **Panjang sinar** dimodulasi `|cos|` agar tampak miring ke arah kamera.
 - **Garis medan dipol**: `r = s·cos²λ`; posisi = `r·sinλ` sepanjang sumbu, `±r·cosλ` tegak lurus. Dash mengalir sepanjang garis (`(k + arah·t·70) mod 36 < 14`).
 - **Efek**: halo cahaya berdenyut, cincin + percikan di tiap ujung ayunan, bintang latar berkedip.
-- **Bola**: shading ramp 6 warna + noise blok yang bergeser dengan waktu (kesan berputar).
+- **Bola berputar cepat**: peta tekstur lon/lat (64×32, di-bake sekali dengan `fbm` yang tile di sumbu lon). Tiap piksel dipetakan terbalik ke titik bola `(nx,ny,nz)`, sumbu putar dimiringkan, `lon = atan2(ax,nz) + t·ω`, `lat = asin(ay)`, lalu ambil texel. Cahaya tetap, tekstur berputar (ω = 10 rad/s). `k = 0.08 + 0.5·l + (tex−0.5)·0.6` → `PX.tone` ke ramp 6 warna.
 
 {{demo:pulsar}}
 
