@@ -105,7 +105,7 @@ PX.demos.rain = (host) =&gt; {
   let rain = new PX.Rain({ w: W, ground: G }), opt = { density: 1, slant: -0.22 };
   const rebuild = () =&gt; (rain = new PX.Rain({ w: W, ground: G, ...opt }));
   const ui = PX.ui(host);
-  ui.select('Kepadatan', ['0.5', '1', '2'], '1', (v) =&gt; { opt.density = +v; rebuild(); });
+  ui.range('Kepadatan', 0.5, 2, 0.5, 1, (v) =&gt; { opt.density = v; rebuild(); });
   ui.select('Kemiringan', [{ label: 'miring kiri', value: -0.22 }, { label: 'tegak', value: 0 }, { label: 'miring kanan', value: 0.3 }], -0.22, (v) =&gt; { opt.slant = +v; rebuild(); });
   const flush = (b) =&gt; { b.flush(o); c.drawImage(oc, 0, 0); };
   PX.loop(host, (dt, t) =&gt; {

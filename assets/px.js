@@ -70,6 +70,11 @@ PX.ui = (host) => {
       opts.forEach((o) => s.add(new Option(o.label ?? o, o.value ?? o)));
       s.value = val; s.onchange = () => fn(s.value); wrap(label, s); return s;
     },
+    range(label, min, max, step, val, fn) {
+      const r = document.createElement('input'); r.type = 'range'; r.min = min; r.max = max; r.step = step; r.value = val;
+      const fill = () => r.style.setProperty('--p', ((r.value - min) / (max - min)) * 100 + '%');
+      r.oninput = () => { fill(); fn(+r.value); }; fill(); wrap(label, r); return r;
+    },
     check(label, val, fn) {
       const c = document.createElement('input'); c.type = 'checkbox'; c.checked = val;
       c.onchange = () => fn(c.checked); wrap(label, c); return c;
@@ -645,7 +650,7 @@ PX.demos.rain = (host) => {
   let rain = new PX.Rain({ w: W, ground: G }), opt = { density: 1, slant: -0.22 };
   const rebuild = () => (rain = new PX.Rain({ w: W, ground: G, ...opt }));
   const ui = PX.ui(host);
-  ui.select('Kepadatan', ['0.5', '1', '2'], '1', (v) => { opt.density = +v; rebuild(); });
+  ui.range('Kepadatan', 0.5, 2, 0.5, 1, (v) => { opt.density = v; rebuild(); });
   ui.select('Kemiringan', [{ label: 'miring kiri', value: -0.22 }, { label: 'tegak', value: 0 }, { label: 'miring kanan', value: 0.3 }], -0.22, (v) => { opt.slant = +v; rebuild(); });
   const flush = (b) => { b.flush(o); c.drawImage(oc, 0, 0); };
   PX.loop(host, (dt, t) => {
