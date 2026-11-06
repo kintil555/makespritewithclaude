@@ -8,12 +8,12 @@ PX.Blast = class {
   constructor(x, y, R, pal = PX.PALS.api) {
     const r = Math.random, rg = (a, b) => a + r() * (b - a); this.x = Math.round(x); this.y = Math.round(y); this.R = R; this.t = 0; this.life = 1.05 + r() * 0.25; this.shake = 1;
     this.c = pal.c.map(PX.hex); this.sm = pal.smoke.map(PX.hex);
-    // sinar: 10 duri utama (merata + jitter, tebal, panjang) + 22 sinar pendek acak. Tiap sinar punya fase & frekuensi sendiri: berkedip, bergoyang, dan denyut terang merambat keluar.
+    // sinar: 10 duri utama (merata + jitter, tebal, panjang) + 22 sinar pendek acak. Tiap sinar = ruas [ekor, kepala]: kepala melesat keluar, ekor mengejar dari pangkal, lalu lenyap (tanpa memantul).
     this.rays = [
-      ...Array.from({ length: 10 }, (_, i) => ({ a: (i / 10) * 6.283 + rg(-0.15, 0.15), len: rg(1.4, 2.5), big: true, t0: rg(0, 0.05), ph: rg(0, 6.283), f: rg(14, 28), sp: rg(1.4, 2.4) })),
-      ...Array.from({ length: 22 }, () => ({ a: r() * 6.283, len: rg(0.4, 1.3), big: false, t0: rg(0.02, 0.14), ph: rg(0, 6.283), f: rg(20, 40), sp: rg(1.8, 3) })),
+      ...Array.from({ length: 10 }, (_, i) => ({ a: (i / 10) * 6.283 + rg(-0.15, 0.15), len: rg(1.4, 2.5), big: true, t0: rg(0, 0.05), sr: rg(0.85, 1.15) })),
+      ...Array.from({ length: 22 }, () => ({ a: r() * 6.283, len: rg(0.4, 1.3), big: false, t0: rg(0.02, 0.14), sr: rg(0.85, 1.15) })),
     ];
-    this.spin = (r() < 0.5 ? -1 : 1) * rg(1.2, 2.4); this.tips = [];
+    this.spin = (r() < 0.5 ? -1 : 1) * rg(1.4, 2.4); this.tips = [];
     this.lobes = Array.from({ length: 10 }, () => ({ a: r() * 6.283, d: r() * 0.75, r: 0.2 + r() * 0.28, t0: r() * 0.22, tl: 0.45 + r() * 0.4 }));
     this.ph = [r() * 6.283, r() * 6.283, r() * 6.283];
     this.parts = Array.from({ length: 70 }, () => { const g = r() * 6.283, v = (0.4 + Math.sqrt(r()) * 2.4) * R * 3; return { x: this.x, y: this.y, vx: Math.cos(g) * v, vy: Math.sin(g) * v - R, life: 0.25 + r() * 0.75, ci: (r() * 4) | 0 }; });
@@ -47,19 +47,19 @@ PX.Blast = class {
           lx = cx + Math.cos(l.a) * l.d * R * 1.5 * le, ly = cy + Math.sin(l.a) * l.d * R * 1.5 * le;
         [[0, 1, 0.55], [1, 0.86, 0.7], [2, 0.64, 0.85], [3, 0.42, 0.95], [4, 0.22 * (1 - lu * 0.6), 1]].forEach(([ci, k, A]) => b.disc(lx, ly, sz * k, c[ci], al * A));
       }
-      const spin = (this.spin * (1 - Math.exp(-3 * T))) / 3;                              // seluruh bintang berputar, melambat (ease-out)
-      for (const r of this.rays) {                                                        // sinar teranimasi
-        const ru = (u - r.t0) / (1 - r.t0); if (ru < 0) continue;
-        const gr = 1 - Math.pow(1 - Math.min(1, ru / 0.45), 3), shrink = 1 - 0.45 * Math.max(0, (ru - 0.5) / 0.5);   // tumbuh cepat, bertahan, lalu menciut
-        const L = R * r.len * 1.5 * gr * shrink * (0.8 + 0.2 * Math.sin(T * r.f + r.ph)); if (L < 1) continue;   // panjang bergetar
-        const ang = r.a + spin + Math.sin(T * r.f * 0.35 + r.ph) * (r.big ? 0.04 : 0.09), ca = Math.cos(ang), sa = Math.sin(ang), s0 = R * 0.3, al = 1 - Math.pow(ru, 2.2), pf = (T * r.sp + r.ph) % 1;
-        for (let d = 0; d < L; d += 0.8) {
-          if (rnd() < 0.04) continue; const f = d / L, pulse = Math.max(0, 1 - Math.abs(f - pf) / 0.16), k = Math.min(1, Math.pow(1 - f, 0.55) * al * (0.8 + 0.5 * pulse));   // pulse = denyut terang yang merambat ke ujung
-          const col = pulse > 0.6 || f < 0.22 ? c[4] : f < 0.6 ? c[3] : c[1], px = cx + ca * (s0 + d), py = cy + sa * (s0 + d);
+      const spin = this.spin * (1 - Math.pow(1 - Math.min(1, u * 1.15), 3));              // putaran ease-out kubik: cepat di awal, melambat sampai berhenti saat sinar habis (tidak linear)
+      for (const r of this.rays) {                                                        // sinar: muncul lalu langsung lenyap, searah (tanpa tumbuh-menciut-tumbuh)
+        const ru = (u - r.t0) / (0.78 - r.t0); if (ru < 0 || ru >= 1) continue;
+        const Lm = R * r.len * 1.5, head = Lm * (1 - Math.pow(1 - Math.min(1, ru / 0.5), 3)), tail = head * Math.pow(ru, 1.5);   // kepala melesat (ease-out), ekor mengejar dari pangkal
+        if (head - tail < 1) continue;
+        const ang = r.a + spin * r.sr, ca = Math.cos(ang), sa = Math.sin(ang), s0 = R * 0.3, al = Math.pow(1 - ru, 0.5);
+        for (let d = tail; d < head; d += 0.8) {
+          if (rnd() < 0.04) continue; const fv = (d - tail) / (head - tail), g = d / Lm, k = Math.min(1, (0.3 + 0.9 * fv) * al);   // terang di kepala, redup di ekor
+          const col = fv > 0.8 ? c[4] : fv > 0.35 ? c[3] : c[1], px = cx + ca * (s0 + d), py = cy + sa * (s0 + d);
           b.px(px, py, col, k);
-          if (r.big) { const w = f < 0.35 ? 1 : f < 0.7 ? 0.6 : 0; if (w) { b.px(px - sa, py + ca, f < 0.35 ? c[3] : c[2], k * w); b.px(px + sa, py - ca, f < 0.35 ? c[3] : c[2], k * w); if (f < 0.12) { b.px(px - 2 * sa, py + 2 * ca, c[1], k * 0.6); b.px(px + 2 * sa, py - 2 * ca, c[1], k * 0.6); } } }   // duri utama: pangkal tebal 3-5 piksel, meruncing ke ujung
+          if (r.big) { const w = g < 0.35 ? 1 : g < 0.7 ? 0.6 : 0; if (w) { const cc = g < 0.35 ? c[3] : c[2]; b.px(px - sa, py + ca, cc, k * w); b.px(px + sa, py - ca, cc, k * w); if (g < 0.12) { b.px(px - 2 * sa, py + 2 * ca, c[1], k * 0.6); b.px(px + 2 * sa, py - 2 * ca, c[1], k * 0.6); } } }   // duri utama: pangkal tebal 3-5 piksel
         }
-        const tx = cx + ca * (s0 + L), ty = cy + sa * (s0 + L); this.tips.push(tx, ty, al); if (r.big) b.px(tx, ty, c[4], al * 0.9);
+        const tx = cx + ca * (s0 + head), ty = cy + sa * (s0 + head); this.tips.push(tx, ty, al); if (r.big) b.px(tx, ty, c[4], al * 0.9);
       }
       for (let k = 0; k < 2; k++) {                                                       // gelombang kejut 2 lapis, radius bergelombang
         const rr = R * (k ? 0.3 + 1.2 * e : 0.4 + 1.7 * e), n = Math.ceil(rr * 6.3), aa = a * (k ? 0.55 : 0.9); if (rr < 1) continue;

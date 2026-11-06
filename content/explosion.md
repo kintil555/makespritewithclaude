@@ -27,12 +27,12 @@ Cherenkov biru, lebih "bersih" dan geometris:
 1. **Haze**: disc radius `R(1+0.9e)` alpha 0.14 warna paling gelap.
 2. **Kilat**: 14% awal umur, disc putih membesar sambil memudar.
 3. **Gumpalan**: 10 lobus acak; tiap lobus = **5 disc konsentris** gelap → putih (radius `1, .86, .64, .42, .22`; alpha `.55, .7, .85, .95, 1`).
-4. **Sinar (teranimasi)**: 10 duri utama merata + jitter (panjang `1.4–2.5R`, pangkal tebal 3–5 piksel yang meruncing) dan 22 sinar pendek acak, dari `0.3R`. Tiap sinar punya fase `ph`, frekuensi `f`, dan kecepatan denyut `sp` sendiri, sehingga hidup dengan 5 gerak:
-   - **tumbuh** cepat (ease-out kubik di 45% awal), bertahan, lalu **menciut** 45% di akhir;
-   - **panjang bergetar** `0.8 + 0.2·sin(t·f + ph)`;
-   - **berputar**: seluruh bintang memakai sudut `a + ω·(1 − e^(−3t))/3` (melambat) plus goyang kecil per sinar `sin(0.35·t·f + ph)`;
-   - **denyut terang merambat**: posisi `pf = (t·sp + ph) mod 1` di sepanjang sinar; piksel dekat `pf` memakai putih dan lebih terang;
-   - **gerigi**: 4% piksel dilewati acak tiap frame, jadi tepinya berkedip. Alpha `1 − ru^2.2` (bertahan lalu jatuh), bukan memudar linear dari awal.
+4. **Sinar (teranimasi)**: 10 duri utama merata + jitter (panjang `1.4–2.5R`, pangkal tebal 3–5 piksel yang meruncing) dan 22 sinar pendek acak, dari `0.3R`. Tiap sinar adalah ruas `[ekor, kepala]` dan **sekali jalan, tanpa memantul**:
+   - **kepala** melesat keluar dengan ease-out kubik di paruh awal umur sinar: `head = Lmaks·(1 − (1 − min(1, ru/0.5))³)`;
+   - **ekor** mengejar dari pangkal: `tail = head·ru^1.5`, sehingga sinar muncul penuh lalu langsung terkikis dari pangkal sampai habis (panjang tidak pernah naik lagi);
+   - terang di kepala (putih), redup di ekor; alpha `(1 − ru)^0.5` turun satu arah;
+   - **putaran tidak linear**: sudut seluruh bintang `spin·(1 − (1 − u)³)` (ease-out kubik: cepat di awal, melambat sampai berhenti saat sinar habis), tiap sinar dengan faktor `0.85–1.15` agar tidak kaku;
+   - 4% piksel dilewati acak tiap frame supaya tepinya bergerigi. Tidak ada `sin` pada panjang atau sudut — itu yang membuat sinar terlihat memantul.
 5. **Gelombang kejut**: 2 cincin dengan radius `rr·(1 + 0.07·sin3θ + 0.05·sin5θ + 0.03·sin9θ)` + jitter, supaya tidak bulat sempurna.
 6. **Kilau silang**: 22% awal umur, 4 garis tipis (kiri/kanan/atas/bawah) dengan alpha berkedip.
 7. **Cincin riak ketiga**: tipis, lebih lambat, radius `R(0.3 + 2.6e)`; riaknya `sin(7θ − 9t)` merambat di sepanjang cincin.
