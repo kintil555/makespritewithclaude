@@ -66,7 +66,9 @@ ${md ? `<link rel="alternate" type="text/markdown" href="${SITE}/${md}" title="M
 <div class="shell">
 <header class="top"><a class="brand" href="${r}index.html"><span class="logo" aria-hidden="true"></span>${NAME}</a></header>
 <div class="layout">${sidebar(r, cur)}${body}</div>
-<footer><p>Akses mesin: <a href="${r}llms.txt">llms.txt</a> · <a href="${r}llms-full.txt">llms-full.txt</a> · <a href="${r}index.json">index.json</a> · <a href="${r}sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+<footer><p>Akses mesin: <a href="${r}llms.txt">llms.txt</a> · <a href="${r}llms-full.txt">llms-full.txt</a> · <a href="${r}index.json">index.json</a> · <a href="${r}sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p>
+<p class="credit">© 2026 voxel. Seluruh hak cipta dilindungi.</p>
+<p class="credit">Terima kasih kepada semua kreator, penulis tutorial, dan komunitas pixel art, VFX, serta game dev di internet yang berbagi ilmu dan referensinya secara terbuka — khususnya <a href="https://blockbench.net/wiki/guides/minecraft-style-guide">Blockbench</a>, <a href="https://phaser.io/packs/retro-textures/api">Phaser</a>, dan <a href="https://www.spritefusion.com/">Sprite Fusion</a>. Kode di situs ini ditulis ulang orisinal; teknik dipelajari dari referensi tersebut.</p></footer>
 </div>
 <script src="${r}assets/px.js"></script><script src="${r}assets/site.js"></script>
 </body></html>`;

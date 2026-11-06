@@ -24,3 +24,6 @@ articles/ md/    hasil build (di-commit agar Pages langsung jalan)
 3. `npm run build`, commit hasilnya.
 
 Teknik dianalisis dari dua referensi (game stickman pixel milik pemilik repo dan bundel "Destroy Any Website" dari Sprite Fusion); seluruh kode di repo ini ditulis ulang dan orisinal.
+
+## Hak cipta & terima kasih
+© 2026 voxel. Terima kasih kepada seluruh kreator dan komunitas di internet yang membagikan referensi pixel art, VFX, dan game dev — khususnya Blockbench (Minecraft Style Guide), Phaser (Retro Textures & Procgen), dan Sprite Fusion.
