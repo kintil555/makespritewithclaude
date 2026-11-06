@@ -643,36 +643,138 @@ PX.demos.tracer = (host) => {
 
 ---
 
-# Ledakan prosedural berlapis
+# Glow — cahaya additive di buffer terpisah
 
-> Kilat putih, gumpalan bola api 5 lapis, sinar radiasi, gelombang kejut bergelombang, partikel, dan asap — dengan palet api atau neutron.
+> Cara membuat cahaya (glow) pixel art yang halus tapi tetap tajam — buffer cahaya sendiri, profil (1−d)², pencampuran additive, dan kapan memakai dither sebagai gantinya.
+
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/glow.html
+
+## Prinsip
+Glow **bukan** lingkaran transparan yang digambar di atas sprite. Glow adalah *cahaya*, jadi ia harus **menambah** warna di bawahnya (additive), bukan menimpanya. Tiga aturan:
+
+1. **Buffer cahaya terpisah.** Semua `glow()` dalam satu frame ditumpuk di `PX.Light` (float RGB), baru dikomposit sekali di akhir. Dua cahaya yang bertumpuk jadi lebih terang, bukan saling menutup.
+2. **Profil kuadrat.** Intensitas piksel `I = (1 − d/r)² · k`, dengan `d` jarak ke pusat. Pusat terang, jatuh cepat, dan **tepinya nol** — tidak ada garis tepi lingkaran. Profil linear `(1 − d/r)` terlihat seperti kabut kelabu; profil datar terlihat seperti stiker.
+3. **Komposit `lighter`.** Buffer cahaya digambar dengan `globalCompositeOperation = 'lighter'` setelah adegan. Alpha = kecerahan, sehingga area tanpa cahaya tetap transparan (tidak jadi kotak hitam).
+
+Pola ini sama dengan fungsi `glow(x, y, r, warna, intensitas)` pada referensi Sprite Fusion: loop di kotak `[x−r, x+r]`, hitung `t = dx² + dy²` ternormalisasi, lewati bila `t ≥ 1`, lalu `add(x, y, warna, (1 − √t)² · k)`.
+
+> **Demo interaktif "glow"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
+
+Gerakkan kursor untuk memindah cahaya, klik untuk kilatan putih. Bandingkan tiga profil.
+
+## Kapan dipakai
+| Efek | Radius | Intensitas | Durasi |
+|---|---|---|---|
+| Ledakan roket | `3.4 · R` oranye + `1.6 · R` putih | 0.6 | putih 0.12 dtk, oranye 0.7 dtk |
+| Ledakan neutron | `3 · R` biru | 0.5 | mengikuti umur ledakan |
+| Peluru (opsional) | kecil, 5–8 px | 0.25–0.4 | sepanjang peluru |
+| Api / obor | 12–20 px | 0.5 | berkedip pelan |
+
+Memudarkan cahaya: kalikan `k` dengan `(1 − u)^1.5` (`u = t / umur`) agar cepat redup di awal dan halus di akhir.
+
+## Jebakan
+- **Jangan pakai glow lebar untuk peluru.** Radius besar membuat proyektil terlihat gemuk; tracer yang bagus justru tanpa glow, atau glow kecil dan redup.
+- **Glow di atas adegan gelap saja yang terlihat.** Bila latar sudah terang, additive langsung jenuh ke putih. Batasi dengan `min(255, ...)` per kanal (sudah di `flush`).
+- **Piksel tetap bulat.** Glow dihitung per piksel kanvas logis dan diperbesar `image-rendering: pixelated`, jadi anak tangganya tetap piksel — gradasi halus hanya pada kecerahan, bukan pada ukuran piksel.
+- **Gradient ala pixel-art murni?** Ganti additive dengan `ditherDisc` (kepadatan piksel turun ke tepi, ambang Bayer) — lihat [palet dan dithering](https://makespritewithclaude.pages.dev/md/dither-palette.md).
+
+## Kode
+
+**Kode: `src/code/12-light.js`**
+
+```js
+// 12-light.js — PX.Light: buffer cahaya terpisah. glow() menambah (additive) ke buffer ini, lalu flush() menimpa kanvas dengan 'lighter'.
+// Profil: intensitas = (1 - jarak/r)^2 * k  -> terang di pusat, jatuh cepat ke tepi (tanpa tepi keras).
+PX.Light = class {
+  constructor(w, h) {
+    this.w = w; this.h = h; this.d = new Float32Array(w * h * 3);
+    this.cv = document.createElement('canvas'); this.cv.width = w; this.cv.height = h;
+    this.cx = this.cv.getContext('2d'); this.img = new ImageData(w, h);
+  }
+  clear() { this.d.fill(0); }
+  glow(x, y, r, col, k = 1, prof = 2) {          // prof: 2 = kuadrat (default), 1 = linear, 0 = datar
+    if (r < 1 || k <= 0.01) return;
+    const w = this.w, h = this.h, x0 = Math.max(0, Math.floor(x - r)), x1 = Math.min(w - 1, Math.ceil(x + r)),
+      y0 = Math.max(0, Math.floor(y - r)), y1 = Math.min(h - 1, Math.ceil(y + r)), q = 1 / r;
+    for (let j = y0; j <= y1; j++) {
+      const dy = (j + 0.5 - y) * q;
+      for (let i = x0; i <= x1; i++) {
+        const dx = (i + 0.5 - x) * q, t = dx * dx + dy * dy; if (t >= 1) continue;
+        const f = 1 - Math.sqrt(t), a = (prof === 2 ? f * f : prof === 1 ? f : 1) * k, o = (j * w + i) * 3;
+        this.d[o] += col[0] * a; this.d[o + 1] += col[1] * a; this.d[o + 2] += col[2] * a;
+      }
+    }
+  }
+  flush(ctx) {
+    const D = this.img.data, s = this.d;
+    for (let i = 0, n = this.w * this.h; i < n; i++) {
+      const r = Math.min(255, s[i * 3]), g = Math.min(255, s[i * 3 + 1]), b = Math.min(255, s[i * 3 + 2]), m = Math.max(r, g, b, 1);
+      D[i * 4] = (r / m) * 255; D[i * 4 + 1] = (g / m) * 255; D[i * 4 + 2] = (b / m) * 255; D[i * 4 + 3] = m;   // alpha = kecerahan -> area gelap tetap transparan
+    }
+    this.cx.putImageData(this.img, 0, 0);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.imageSmoothingEnabled = false; ctx.drawImage(this.cv, 0, 0); ctx.restore();
+  }
+};
+```
+
+
+
+---
+
+# Ledakan prosedural — roket dan neutron
+
+> Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan 5 disc, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.
 
 Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/explosion.html
 
-## Lapisan (urutan gambar)
-1. **Asap** (di belakang): disc besar bertahap gelap, alpha ~0.55 menurun.
-2. **Haze**: disc radius `R·(1+0.9e)` alpha 0.14 warna paling gelap.
-3. **Kilat**: 14% awal, disc putih membesar dengan alpha menurun.
-4. **Gumpalan bola api**: 10 lobus acak. Tiap lobus = **5 disc konsentris** (gelap → putih) dengan radius `1, .86, .64, .42, .22` dan alpha `.55, .7, .85, .95, 1`.
-5. **Sinar**: 26 garis dari 0.3R, pendek–panjang acak, warna putih → tengah → gelap menurut jarak, 10% piksel dilewat agar bergerigi.
-6. **Gelombang kejut**: 2 cincin, radius `rr·(1 + 0.07·sin3θ + 0.05·sin5θ + 0.03·sin9θ)` + jitter ±0.7. Bentuk tak beraturan membuatnya terasa organik.
-7. **Partikel**: 60 piksel, kecepatan `√random` (lebih banyak dekat pusat), gravitasi.
-
-Easing keluar: `e = 1 - (1-u)²`, alpha `a = (1-u)^1.1`, `u = t/life`. Semua posisi di-`round` oleh `PX.Buf`.
-
-## Ganti palet = ganti tema
-Hanya 5 warna ramp + 4 warna asap. Pilih "neutron" pada demo untuk versi biru.
+Satu ledakan = beberapa lapis yang hidup dengan jam masing-masing. Pilih **jenis** di demo: bentuknya sengaja berbeda supaya pemain langsung tahu senjata apa yang meledak.
 
 > **Demo interaktif "blast"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
 
-Klik untuk meledakkan.
+Klik untuk meledakkan. Pilih "roket" atau "neutron".
+
+## Ledakan roket (`PX.Rocket`)
+Berasal dari gaya `fx.explosion` (Sprite Fusion) dan `bigBlast` (Stickman Pixel). Urutan gambar, dari belakang ke depan:
+
+1. **Asap besar** (22 gumpal): menyebar cepat dari pusat lalu melambat (`v·e^(−2.2t)`). Tiap gumpal = 3 disc bergeser (tubuh, bayangan sedikit ke kanan-bawah, highlight kiri-atas) agar terlihat bervolume. 6 gumpal pertama berwarna merah panas, sisanya meredup lewat ramp 4 abu.
+2. **Puff bola api** (38 puff, 3 kelompok): *inti* (5, pendek 0.2 dtk), *menyebar* (28, 0.55–1 dtk, miring ke atas), *naik* (5, ke atas, tertunda). Warna dipilih dari **ramp 9 tingkat** (putih → kuning → oranye → merah → coklat) menurut umur: `idx = (u^0.62 + noise·0.1)·8`. Ukuran membesar cepat lalu menyusut: `h = size·(0.55 + 0.45·min(1, 7u))·(1 − 0.55u)`. Setiap puff digambar sebagai tubuh + disc bergeser + "benjolan" atas + highlight, bukan satu lingkaran polos.
+3. **Kilat**: disc putih radius `1.05R` hanya 0.06 detik. Singkat — kilat panjang menutupi bola api.
+4. **Dua cincin**: kuning (`0.1R → 2.7R`, 0.5 dtk) dan kuning pucat (`0.1R → 1.9R`, 0.34 dtk). Radius memakai easing kubik `1−(1−u)³`, alpha `(1−u)^1.4`, tebal menyusut ke minimum 0.9 px.
+5. **Percikan** (90): kecepatan acak, gravitasi, 1 piksel + 1 piksel ekor redup di belakangnya. Warna acak dari 5 tingkat putih → oranye.
+6. **Cahaya**: `PX.Light` oranye radius `3.4R` redup selama 0.7 dtk + putih `1.6R` selama 0.12 dtk — lihat [glow](https://makespritewithclaude.pages.dev/md/glow.md).
+7. **Getaran**: `translate` acak pada kanvas, amplitudo turun linear (≈0.33 dtk). Di game, dikalikan jarak ke pemain.
+
+## Ledakan neutron (`PX.Blast`)
+Cherenkov biru, lebih "bersih" dan geometris:
+
+1. **Haze**: disc radius `R(1+0.9e)` alpha 0.14 warna paling gelap.
+2. **Kilat**: 14% awal umur, disc putih membesar sambil memudar.
+3. **Gumpalan**: 10 lobus acak; tiap lobus = **5 disc konsentris** gelap → putih (radius `1, .86, .64, .42, .22`; alpha `.55, .7, .85, .95, 1`).
+4. **Sinar**: 26 garis dari `0.3R`, panjang acak, putih → tengah → gelap; 10% piksel dilewati agar bergerigi.
+5. **Gelombang kejut**: 2 cincin dengan radius `rr·(1 + 0.07·sin3θ + 0.05·sin5θ + 0.03·sin9θ)` + jitter, supaya tidak bulat sempurna.
+6. **Partikel** 60 piksel, kecepatan `√random`; **asap** 7 gumpal biru-abu.
+
+## Beda roket vs neutron
+| | Roket | Neutron |
+|---|---|---|
+| Karakter | api, volumetrik, kotor | energi, tajam, simetris |
+| Dominan | puff + asap + percikan | sinar + gelombang kejut |
+| Warna | ramp api 9 tingkat | ramp biru 5 tingkat |
+| Cahaya | oranye hangat, lama | biru, mengikuti umur |
+| Asap | banyak, besar, lama | sedikit |
+
+Kaidah umum: durasi tiap lapis berbeda (kilat 0.06 dtk, cincin 0.3–0.5, puff 0.5–1, asap 1–2), easing keluar `1−(1−u)²`, alpha `(1−u)^1.1`, dan semua posisi di-`round` oleh `PX.Buf`.
+
+## Ganti palet = ganti tema
+`PX.PALS` berisi ramp 5 warna + 4 warna asap; `PX.FB` ramp api roket. Ledakan jenis baru cukup menukar ramp dan memilih lapisan yang dipakai.
 
 ## Kode
 
 **Kode: `src/code/41-demo-blast.js`**
 
 ```js
-// Ledakan prosedural berlapis: kilat putih -> gumpalan bola api (5 lapis disc) -> sinar -> gelombang kejut tak beraturan -> partikel -> asap.
+// Dua jenis ledakan. PX.Rocket (roket/launcher): kilat -> 2 cincin -> puff bola api -> asap besar -> percikan berparabola.
+// PX.Blast (neutron): kilat -> gumpalan 5 disc -> sinar -> gelombang kejut tak beraturan -> partikel -> asap. Keduanya memberi cahaya lewat PX.Light.
 PX.PALS = {
   api:     { c: ['#8a1f17', '#f2561d', '#ff8a2a', '#ffe26b', '#ffffff'], smoke: ['#7e3030', '#4a2a2a', '#2e2024', '#1a161c'] },
   neutron: { c: ['#1b2fb0', '#3a5cff', '#8fb4ff', '#c9d8ff', '#ffffff'], smoke: ['#5a6aa8', '#3a4278', '#262a4c', '#14162a'] },
@@ -726,17 +828,62 @@ PX.Blast = class {
   }
 };
 
+// ---- Ledakan roket: port gaya fx.explosion (Sprite Fusion) + bigBlast (Stickman Pixel). Skala: R = radius ledakan dalam piksel kanvas.
+PX.FB = ['#ffffff', '#fff3a6', '#ffe26b', '#ffc23d', '#ff8a2a', '#f2561d', '#c9281f', '#8a1f17', '#4a1712'].map(PX.hex);
+PX.Rocket = class {
+  constructor(x, y, R) {
+    const r = Math.random, rg = (a, b) => a + r() * (b - a), z = R * 0.95; this.x = Math.round(x); this.y = Math.round(y); this.R = R; this.t = 0; this.shake = 1;
+    this.rings = [{ r0: R * 0.1, r1: R * 2.7, life: 0.5, th: 1.8, c: PX.hex('#ffd84a') }, { r0: R * 0.1, r1: R * 1.9, life: 0.34, th: 1.2, c: PX.hex('#fff1a8') }];
+    this.puffs = []; const puff = (px, py, vx, vy, life, size, d = 0) => this.puffs.push({ x: px, y: py, vx, vy, life, size, d, sd: r() });
+    for (let i = 0; i < 5; i++) puff(x + rg(-1, 1), y + rg(-1, 1), rg(-10, 10), rg(-20, -5), rg(0.18, 0.3), rg(z * 0.8, z * 1.1));                          // inti
+    for (let i = 0; i < 28; i++) { const a = r() * 6.283, e = rg(0, R * 0.55), sp = rg(20, 105); puff(x + Math.cos(a) * e, y + Math.sin(a) * e, Math.cos(a) * sp, Math.sin(a) * sp * 0.8 - 20, rg(0.55, 1), rg(z * 0.45, z * 0.9)); }   // menyebar
+    for (let i = 0; i < 5; i++) puff(x + rg(-R * 0.25, R * 0.25), y, rg(-6, 6), rg(-90, -50), rg(0.7, 1), rg(z * 0.5, z * 0.7), rg(0, 0.1));              // naik
+    this.smoke = Array.from({ length: 22 }, (_, i) => { const a = r() * 6.283, v = R * (1 + r() * 2), l = 1 + r() * 0.9; return { x: x + Math.cos(a) * R * 0.1, y: y + Math.sin(a) * R * 0.1, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.85 - 5, life: l, r1: 2 + r() * 3.5, hot: i < 6 }; });
+    const PAL = ['#ffffff', '#fff3b0', '#ffc23a', '#ff8a1f', '#ff6a1a'].map(PX.hex);
+    this.sparks = Array.from({ length: 90 }, () => { const a = r() * 6.283, v = 60 + r() * 240; return { x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 50, life: 0.45 + r() * 0.85, c: PAL[(r() * 5) | 0] }; });
+  }
+  get done() { return this.t > 2.2; }
+  step(dt) {
+    this.t += dt; this.shake = Math.max(0, this.shake - dt * 3);
+    for (const p of this.puffs) { p.d -= dt; if (p.d > 0) continue; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.exp(-2.5 * dt); p.vy *= Math.exp(-2.5 * dt); p.vy -= 12 * dt; p.t = (p.t || 0) + dt; }
+    for (const s of this.smoke) { s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= Math.exp(-2.2 * dt); s.vy *= Math.exp(-2.2 * dt); }
+    for (const s of this.sparks) { s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 380 * dt; }
+  }
+  light(L) { const u = Math.min(1, this.t / 0.7); L.glow(this.x, this.y, this.R * 3.4, [255, 176, 80], 0.6 * Math.pow(1 - u, 1.5)); if (this.t < 0.12) L.glow(this.x, this.y, this.R * 1.6, [255, 255, 255], 0.6 * (1 - this.t / 0.12)); }
+  draw(b) {
+    const SM = ['#7e3030', '#4a2a2a', '#2e2024', '#1a161c'].map(PX.hex), c = this.t;
+    for (const s of this.smoke) {                                                           // asap: bola besar menyebar, 3 disc bergeser (tubuh + bayangan + highlight)
+      const t = c / s.life; if (t >= 1 || t < 0.04) continue; const r = 1.5 + (s.r1 * 1.25 - 1.5) * (1 - (1 - t) * (1 - t)), a = Math.min(1, t * 12) * Math.min(1, (1 - t) * 2.4) * 0.6, col = s.hot && t < 0.25 ? PX.hex('#a8402a') : SM[Math.min(3, (t * 4) | 0)];
+      b.disc(s.x, s.y, r, col, a * 0.45); b.disc(s.x + r * 0.05, s.y + r * 0.06, r * 0.74, col, a * 0.62); if (t < 0.5) b.disc(s.x - r * 0.22, s.y - r * 0.3, r * 0.5, SM[Math.max(0, Math.min(3, (t * 4) | 0) - 1)], a * 0.4 * (1 - t * 2));
+    }
+    if (c < 0.06) b.disc(this.x, this.y, this.R * 1.05, PX.FB[0], 1);                         // kilat 0.06 dtk
+    for (const p of this.puffs) {                                                           // puff bola api: warna turun sepanjang ramp 9 tingkat
+      if (p.d > 0) continue; const T = p.t || 0, at = T / p.life; if (at >= 1) continue;
+      const et = 1 - at, it = Math.min(0.999, Math.pow(at, 0.62) + p.sd * 0.1), lt = Math.min(7, Math.floor(it * 8)), h = p.size * (0.55 + 0.45 * Math.min(1, at * 7)) * (1 - at * 0.55), FB = PX.FB;
+      if (lt >= 7) b.disc(p.x, p.y, h, FB[lt], Math.min(1, et * 3) * 0.85);
+      else { b.disc(p.x, p.y, h, FB[Math.min(8, lt + 2)]); b.disc(p.x - h * 0.16, p.y - h * 0.22, h * 0.78, FB[lt]); if (h > 1.6) b.disc(p.x, p.y - h * 0.9, h * 0.42, FB[lt]); if (lt <= 3 && h > 1.8) b.disc(p.x - h * 0.28, p.y - h * 0.34, h * 0.36, FB[Math.max(0, lt - 1)]); }
+    }
+    for (const q of this.rings) {                                                           // cincin: radius easing kubik, alpha (1-u)^1.4, tebal menyusut
+      const u = c / q.life; if (u >= 1) continue; const e = 1 - Math.pow(1 - u, 3), Rc = q.r0 + (q.r1 - q.r0) * e, th = Math.max(0.9, q.th * (1 - u * 0.5)), n = Math.ceil(Rc * 6.3), al = Math.pow(1 - u, 1.4);
+      for (let i = 0; i < n; i++) { const g = (i / n) * 6.283; for (let k = 0; k < th; k++) b.px(this.x + Math.cos(g) * (Rc + k), this.y + Math.sin(g) * (Rc + k), q.c, al); }
+    }
+    for (const s of this.sparks) { const u = c / s.life; if (u >= 1) continue; b.px(s.x, s.y, s.c, 1 - u * 0.5); b.px(s.x - s.vx * 0.02, s.y - s.vy * 0.02, s.c, (1 - u) * 0.5); }
+  }
+};
+
 PX.demos.blast = (host) => {
-  const W = 160, H = 90, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), buf = new PX.Buf(W, H), p = PX.pointer(cv);
+  const W = 240, H = 135, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), buf = new PX.Buf(W, H), lit = new PX.Light(W, H), p = PX.pointer(cv);
   cv.style.background = '#12121c';
-  let pal = 'api', list = [], idle = 0;
-  PX.ui(host).select('Palet', Object.keys(PX.PALS), 'api', (v) => (pal = v));
+  let kind = 'roket', list = [], idle = 0, shake = 0;
+  PX.ui(host).select('Jenis', ['roket', 'neutron'], 'roket', (v) => (kind = v));
+  const boom = (x, y, k = kind) => list.push(k === 'roket' ? new PX.Rocket(x, y, 11) : new PX.Blast(x, y, 16, PX.PALS.neutron));
   PX.loop(host, (dt) => {
-    for (const k of p.clicks.splice(0)) list.push(new PX.Blast(k.x, k.y, 14, PX.PALS[pal]));
-    idle -= dt; if (idle <= 0) { idle = 1.8; if (!p.in) list.push(new PX.Blast(30 + Math.random() * 100, 25 + Math.random() * 40, 11 + Math.random() * 6, PX.PALS[pal])); }
-    list = list.filter((q) => !q.done); buf.clear();
-    for (const q of list) { q.step(dt); q.draw(buf); }
-    buf.flush(c);
+    for (const k of p.clicks.splice(0)) boom(k.x, k.y);
+    idle -= dt; if (idle <= 0) { idle = 2; if (!p.in) boom(50 + Math.random() * 140, 40 + Math.random() * 60); }
+    list = list.filter((q) => !q.done); buf.clear(); lit.clear(); shake = 0;
+    for (const q of list) { q.step(dt); q.draw(buf); if (q.light) q.light(lit); else lit.glow(q.x, q.y, q.R * 3, [90, 130, 255], 0.5 * Math.pow(Math.max(0, 1 - q.t / q.life), 1.5)); if (q.shake) shake = Math.max(shake, q.shake); }
+    buf.flush(c); lit.flush(c);
+    cv.style.transform = shake > 0.02 ? `translate(${((Math.random() - 0.5) * 6 * shake).toFixed(1)}px,${((Math.random() - 0.5) * 6 * shake).toFixed(1)}px)` : '';
   });
 };
 ```

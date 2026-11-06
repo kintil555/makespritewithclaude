@@ -134,6 +134,40 @@ PX.Buf = class {
   flush(ctx) { ctx.putImageData(this.img, 0, 0); }
 };
 
+/* 12-light.js */
+// 12-light.js — PX.Light: buffer cahaya terpisah. glow() menambah (additive) ke buffer ini, lalu flush() menimpa kanvas dengan 'lighter'.
+// Profil: intensitas = (1 - jarak/r)^2 * k  -> terang di pusat, jatuh cepat ke tepi (tanpa tepi keras).
+PX.Light = class {
+  constructor(w, h) {
+    this.w = w; this.h = h; this.d = new Float32Array(w * h * 3);
+    this.cv = document.createElement('canvas'); this.cv.width = w; this.cv.height = h;
+    this.cx = this.cv.getContext('2d'); this.img = new ImageData(w, h);
+  }
+  clear() { this.d.fill(0); }
+  glow(x, y, r, col, k = 1, prof = 2) {          // prof: 2 = kuadrat (default), 1 = linear, 0 = datar
+    if (r < 1 || k <= 0.01) return;
+    const w = this.w, h = this.h, x0 = Math.max(0, Math.floor(x - r)), x1 = Math.min(w - 1, Math.ceil(x + r)),
+      y0 = Math.max(0, Math.floor(y - r)), y1 = Math.min(h - 1, Math.ceil(y + r)), q = 1 / r;
+    for (let j = y0; j <= y1; j++) {
+      const dy = (j + 0.5 - y) * q;
+      for (let i = x0; i <= x1; i++) {
+        const dx = (i + 0.5 - x) * q, t = dx * dx + dy * dy; if (t >= 1) continue;
+        const f = 1 - Math.sqrt(t), a = (prof === 2 ? f * f : prof === 1 ? f : 1) * k, o = (j * w + i) * 3;
+        this.d[o] += col[0] * a; this.d[o + 1] += col[1] * a; this.d[o + 2] += col[2] * a;
+      }
+    }
+  }
+  flush(ctx) {
+    const D = this.img.data, s = this.d;
+    for (let i = 0, n = this.w * this.h; i < n; i++) {
+      const r = Math.min(255, s[i * 3]), g = Math.min(255, s[i * 3 + 1]), b = Math.min(255, s[i * 3 + 2]), m = Math.max(r, g, b, 1);
+      D[i * 4] = (r / m) * 255; D[i * 4 + 1] = (g / m) * 255; D[i * 4 + 2] = (b / m) * 255; D[i * 4 + 3] = m;   // alpha = kecerahan -> area gelap tetap transparan
+    }
+    this.cx.putImageData(this.img, 0, 0);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.imageSmoothingEnabled = false; ctx.drawImage(this.cv, 0, 0); ctx.restore();
+  }
+};
+
 /* 20-pixelize.js */
 // 20-pixelize.js — render halus resolusi tinggi -> grid piksel (tanpa menggambar model piksel manual)
 // Langkah: (1) gambar vektor halus di canvas besar  (2) bagi jadi sel B×B  (3) sel jadi piksel bila
@@ -314,7 +348,8 @@ PX.demos.tracer = (host) => {
 };
 
 /* 41-demo-blast.js */
-// Ledakan prosedural berlapis: kilat putih -> gumpalan bola api (5 lapis disc) -> sinar -> gelombang kejut tak beraturan -> partikel -> asap.
+// Dua jenis ledakan. PX.Rocket (roket/launcher): kilat -> 2 cincin -> puff bola api -> asap besar -> percikan berparabola.
+// PX.Blast (neutron): kilat -> gumpalan 5 disc -> sinar -> gelombang kejut tak beraturan -> partikel -> asap. Keduanya memberi cahaya lewat PX.Light.
 PX.PALS = {
   api:     { c: ['#8a1f17', '#f2561d', '#ff8a2a', '#ffe26b', '#ffffff'], smoke: ['#7e3030', '#4a2a2a', '#2e2024', '#1a161c'] },
   neutron: { c: ['#1b2fb0', '#3a5cff', '#8fb4ff', '#c9d8ff', '#ffffff'], smoke: ['#5a6aa8', '#3a4278', '#262a4c', '#14162a'] },
@@ -368,17 +403,62 @@ PX.Blast = class {
   }
 };
 
+// ---- Ledakan roket: port gaya fx.explosion (Sprite Fusion) + bigBlast (Stickman Pixel). Skala: R = radius ledakan dalam piksel kanvas.
+PX.FB = ['#ffffff', '#fff3a6', '#ffe26b', '#ffc23d', '#ff8a2a', '#f2561d', '#c9281f', '#8a1f17', '#4a1712'].map(PX.hex);
+PX.Rocket = class {
+  constructor(x, y, R) {
+    const r = Math.random, rg = (a, b) => a + r() * (b - a), z = R * 0.95; this.x = Math.round(x); this.y = Math.round(y); this.R = R; this.t = 0; this.shake = 1;
+    this.rings = [{ r0: R * 0.1, r1: R * 2.7, life: 0.5, th: 1.8, c: PX.hex('#ffd84a') }, { r0: R * 0.1, r1: R * 1.9, life: 0.34, th: 1.2, c: PX.hex('#fff1a8') }];
+    this.puffs = []; const puff = (px, py, vx, vy, life, size, d = 0) => this.puffs.push({ x: px, y: py, vx, vy, life, size, d, sd: r() });
+    for (let i = 0; i < 5; i++) puff(x + rg(-1, 1), y + rg(-1, 1), rg(-10, 10), rg(-20, -5), rg(0.18, 0.3), rg(z * 0.8, z * 1.1));                          // inti
+    for (let i = 0; i < 28; i++) { const a = r() * 6.283, e = rg(0, R * 0.55), sp = rg(20, 105); puff(x + Math.cos(a) * e, y + Math.sin(a) * e, Math.cos(a) * sp, Math.sin(a) * sp * 0.8 - 20, rg(0.55, 1), rg(z * 0.45, z * 0.9)); }   // menyebar
+    for (let i = 0; i < 5; i++) puff(x + rg(-R * 0.25, R * 0.25), y, rg(-6, 6), rg(-90, -50), rg(0.7, 1), rg(z * 0.5, z * 0.7), rg(0, 0.1));              // naik
+    this.smoke = Array.from({ length: 22 }, (_, i) => { const a = r() * 6.283, v = R * (1 + r() * 2), l = 1 + r() * 0.9; return { x: x + Math.cos(a) * R * 0.1, y: y + Math.sin(a) * R * 0.1, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.85 - 5, life: l, r1: 2 + r() * 3.5, hot: i < 6 }; });
+    const PAL = ['#ffffff', '#fff3b0', '#ffc23a', '#ff8a1f', '#ff6a1a'].map(PX.hex);
+    this.sparks = Array.from({ length: 90 }, () => { const a = r() * 6.283, v = 60 + r() * 240; return { x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 50, life: 0.45 + r() * 0.85, c: PAL[(r() * 5) | 0] }; });
+  }
+  get done() { return this.t > 2.2; }
+  step(dt) {
+    this.t += dt; this.shake = Math.max(0, this.shake - dt * 3);
+    for (const p of this.puffs) { p.d -= dt; if (p.d > 0) continue; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.exp(-2.5 * dt); p.vy *= Math.exp(-2.5 * dt); p.vy -= 12 * dt; p.t = (p.t || 0) + dt; }
+    for (const s of this.smoke) { s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= Math.exp(-2.2 * dt); s.vy *= Math.exp(-2.2 * dt); }
+    for (const s of this.sparks) { s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 380 * dt; }
+  }
+  light(L) { const u = Math.min(1, this.t / 0.7); L.glow(this.x, this.y, this.R * 3.4, [255, 176, 80], 0.6 * Math.pow(1 - u, 1.5)); if (this.t < 0.12) L.glow(this.x, this.y, this.R * 1.6, [255, 255, 255], 0.6 * (1 - this.t / 0.12)); }
+  draw(b) {
+    const SM = ['#7e3030', '#4a2a2a', '#2e2024', '#1a161c'].map(PX.hex), c = this.t;
+    for (const s of this.smoke) {                                                           // asap: bola besar menyebar, 3 disc bergeser (tubuh + bayangan + highlight)
+      const t = c / s.life; if (t >= 1 || t < 0.04) continue; const r = 1.5 + (s.r1 * 1.25 - 1.5) * (1 - (1 - t) * (1 - t)), a = Math.min(1, t * 12) * Math.min(1, (1 - t) * 2.4) * 0.6, col = s.hot && t < 0.25 ? PX.hex('#a8402a') : SM[Math.min(3, (t * 4) | 0)];
+      b.disc(s.x, s.y, r, col, a * 0.45); b.disc(s.x + r * 0.05, s.y + r * 0.06, r * 0.74, col, a * 0.62); if (t < 0.5) b.disc(s.x - r * 0.22, s.y - r * 0.3, r * 0.5, SM[Math.max(0, Math.min(3, (t * 4) | 0) - 1)], a * 0.4 * (1 - t * 2));
+    }
+    if (c < 0.06) b.disc(this.x, this.y, this.R * 1.05, PX.FB[0], 1);                         // kilat 0.06 dtk
+    for (const p of this.puffs) {                                                           // puff bola api: warna turun sepanjang ramp 9 tingkat
+      if (p.d > 0) continue; const T = p.t || 0, at = T / p.life; if (at >= 1) continue;
+      const et = 1 - at, it = Math.min(0.999, Math.pow(at, 0.62) + p.sd * 0.1), lt = Math.min(7, Math.floor(it * 8)), h = p.size * (0.55 + 0.45 * Math.min(1, at * 7)) * (1 - at * 0.55), FB = PX.FB;
+      if (lt >= 7) b.disc(p.x, p.y, h, FB[lt], Math.min(1, et * 3) * 0.85);
+      else { b.disc(p.x, p.y, h, FB[Math.min(8, lt + 2)]); b.disc(p.x - h * 0.16, p.y - h * 0.22, h * 0.78, FB[lt]); if (h > 1.6) b.disc(p.x, p.y - h * 0.9, h * 0.42, FB[lt]); if (lt <= 3 && h > 1.8) b.disc(p.x - h * 0.28, p.y - h * 0.34, h * 0.36, FB[Math.max(0, lt - 1)]); }
+    }
+    for (const q of this.rings) {                                                           // cincin: radius easing kubik, alpha (1-u)^1.4, tebal menyusut
+      const u = c / q.life; if (u >= 1) continue; const e = 1 - Math.pow(1 - u, 3), Rc = q.r0 + (q.r1 - q.r0) * e, th = Math.max(0.9, q.th * (1 - u * 0.5)), n = Math.ceil(Rc * 6.3), al = Math.pow(1 - u, 1.4);
+      for (let i = 0; i < n; i++) { const g = (i / n) * 6.283; for (let k = 0; k < th; k++) b.px(this.x + Math.cos(g) * (Rc + k), this.y + Math.sin(g) * (Rc + k), q.c, al); }
+    }
+    for (const s of this.sparks) { const u = c / s.life; if (u >= 1) continue; b.px(s.x, s.y, s.c, 1 - u * 0.5); b.px(s.x - s.vx * 0.02, s.y - s.vy * 0.02, s.c, (1 - u) * 0.5); }
+  }
+};
+
 PX.demos.blast = (host) => {
-  const W = 160, H = 90, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), buf = new PX.Buf(W, H), p = PX.pointer(cv);
+  const W = 240, H = 135, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), buf = new PX.Buf(W, H), lit = new PX.Light(W, H), p = PX.pointer(cv);
   cv.style.background = '#12121c';
-  let pal = 'api', list = [], idle = 0;
-  PX.ui(host).select('Palet', Object.keys(PX.PALS), 'api', (v) => (pal = v));
+  let kind = 'roket', list = [], idle = 0, shake = 0;
+  PX.ui(host).select('Jenis', ['roket', 'neutron'], 'roket', (v) => (kind = v));
+  const boom = (x, y, k = kind) => list.push(k === 'roket' ? new PX.Rocket(x, y, 11) : new PX.Blast(x, y, 16, PX.PALS.neutron));
   PX.loop(host, (dt) => {
-    for (const k of p.clicks.splice(0)) list.push(new PX.Blast(k.x, k.y, 14, PX.PALS[pal]));
-    idle -= dt; if (idle <= 0) { idle = 1.8; if (!p.in) list.push(new PX.Blast(30 + Math.random() * 100, 25 + Math.random() * 40, 11 + Math.random() * 6, PX.PALS[pal])); }
-    list = list.filter((q) => !q.done); buf.clear();
-    for (const q of list) { q.step(dt); q.draw(buf); }
-    buf.flush(c);
+    for (const k of p.clicks.splice(0)) boom(k.x, k.y);
+    idle -= dt; if (idle <= 0) { idle = 2; if (!p.in) boom(50 + Math.random() * 140, 40 + Math.random() * 60); }
+    list = list.filter((q) => !q.done); buf.clear(); lit.clear(); shake = 0;
+    for (const q of list) { q.step(dt); q.draw(buf); if (q.light) q.light(lit); else lit.glow(q.x, q.y, q.R * 3, [90, 130, 255], 0.5 * Math.pow(Math.max(0, 1 - q.t / q.life), 1.5)); if (q.shake) shake = Math.max(shake, q.shake); }
+    buf.flush(c); lit.flush(c);
+    cv.style.transform = shake > 0.02 ? `translate(${((Math.random() - 0.5) * 6 * shake).toFixed(1)}px,${((Math.random() - 0.5) * 6 * shake).toFixed(1)}px)` : '';
   });
 };
 
@@ -659,5 +739,28 @@ PX.demos.rain = (host) => {
     c.fillStyle = '#3a3a58'; c.fillRect(70, G - 22, 12, 22); c.fillRect(72, G - 28, 8, 6);   // "karakter" pengganti
     c.fillStyle = '#5a5a80'; c.fillRect(72, G - 28, 8, 1); c.fillStyle = '#8ff3ff'; c.fillRect(74, G - 25, 1, 1); c.fillRect(77, G - 25, 1, 1);
     flush(front);                                                               // lapis depan di atas karakter
+  });
+};
+
+/* 48-demo-glow.js */
+// Demo glow: kursor = sumber cahaya. Cahaya ditambahkan (additive) di buffer terpisah, lalu ditimpakan 'lighter' di atas adegan.
+PX.demos.glow = (host) => {
+  const W = 240, H = 135, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), buf = new PX.Buf(W, H), lit = new PX.Light(W, H), p = PX.pointer(cv);
+  let R = 40, K = 0.8, prof = 2, col = PX.hex('#ffb050'); const flashes = [];
+  const ui = PX.ui(host);
+  ui.range('Radius', 10, 80, 2, R, (v) => (R = v)); ui.range('Intensitas', 0.2, 1.5, 0.1, K, (v) => (K = v));
+  ui.select('Profil', [{ label: 'kuadrat (1-d)²', value: 2 }, { label: 'linear (1-d)', value: 1 }, { label: 'datar', value: 0 }], 2, (v) => (prof = +v));
+  ui.select('Warna', [{ label: 'api', value: '#ffb050' }, { label: 'neutron', value: '#6f95ff' }, { label: 'hijau', value: '#6dff9a' }], '#ffb050', (v) => (col = PX.hex(v)));
+  const tiles = []; for (let i = 0; i < 40; i++) tiles.push({ x: (PX.hash(i, 1) * 220) | 0, y: 20 + ((PX.hash(i, 2) * 100) | 0), w: 8 + ((PX.hash(i, 3) * 20) | 0), h: 6 + ((PX.hash(i, 4) * 14) | 0) });
+  PX.loop(host, (dt, t) => {
+    for (const k of p.clicks.splice(0)) flashes.push({ x: k.x, y: k.y, t: 0 });
+    buf.clear(); lit.clear();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) buf.px(x, y, ((x >> 3) + (y >> 3)) & 1 ? [28, 28, 40] : [24, 24, 34]);
+    for (const q of tiles) for (let y = 0; y < q.h; y++) for (let x = 0; x < q.w; x++) buf.px(q.x + x, q.y + y, y === 0 ? [92, 92, 120] : [60, 60, 84]);   // blok adegan: tepi atas lebih terang
+    const lx = p.in ? p.x : W / 2 + Math.cos(t) * 70, ly = p.in ? p.y : H / 2 + Math.sin(t * 1.3) * 30;
+    lit.glow(lx, ly, R, col, K, prof);
+    for (let i = flashes.length - 1; i >= 0; i--) { const f = flashes[i]; f.t += dt; const u = f.t / 0.5; if (u >= 1) { flashes.splice(i, 1); continue; } lit.glow(f.x, f.y, 30 + 40 * u, [255, 255, 255], 1.2 * (1 - u), 2); }
+    buf.disc(lx, ly, 2, [255, 255, 255]);
+    buf.flush(c); lit.flush(c);
   });
 };

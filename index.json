@@ -89,10 +89,21 @@
       ]
     },
     {
-      "slug": "explosion",
-      "title": "Ledakan prosedural berlapis",
+      "slug": "glow",
+      "title": "Glow — cahaya additive di buffer terpisah",
       "category": "efek",
-      "summary": "Kilat putih, gumpalan bola api 5 lapis, sinar radiasi, gelombang kejut bergelombang, partikel, dan asap — dengan palet api atau neutron.",
+      "summary": "Cara membuat cahaya (glow) pixel art yang halus tapi tetap tajam — buffer cahaya sendiri, profil (1−d)², pencampuran additive, dan kapan memakai dither sebagai gantinya.",
+      "html": "https://makespritewithclaude.pages.dev/articles/glow.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/glow.md",
+      "code": [
+        "https://makespritewithclaude.pages.dev/src/code/12-light.js"
+      ]
+    },
+    {
+      "slug": "explosion",
+      "title": "Ledakan prosedural — roket dan neutron",
+      "category": "efek",
+      "summary": "Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan 5 disc, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.",
       "html": "https://makespritewithclaude.pages.dev/articles/explosion.html",
       "markdown": "https://makespritewithclaude.pages.dev/md/explosion.md",
       "code": [

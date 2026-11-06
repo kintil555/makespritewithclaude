@@ -14,7 +14,8 @@ Catatan: kode di situs ini adalah JavaScript murni tanpa dependensi, berjalan di
 ## Efek (VFX)
 
 - [Tracer peluru, muzzle flash, dan percikan tumbukan](https://makespritewithclaude.pages.dev/md/tracer-muzzle.md): Jejak peluru 3 tingkat (inti 1px, pasangan piksel, ekor gelap), kilatan moncong dari sinar acak, dan percikan berpantul.
-- [Ledakan prosedural berlapis](https://makespritewithclaude.pages.dev/md/explosion.md): Kilat putih, gumpalan bola api 5 lapis, sinar radiasi, gelombang kejut bergelombang, partikel, dan asap — dengan palet api atau neutron.
+- [Glow — cahaya additive di buffer terpisah](https://makespritewithclaude.pages.dev/md/glow.md): Cara membuat cahaya (glow) pixel art yang halus tapi tetap tajam — buffer cahaya sendiri, profil (1−d)², pencampuran additive, dan kapan memakai dither sebagai gantinya.
+- [Ledakan prosedural — roket dan neutron](https://makespritewithclaude.pages.dev/md/explosion.md): Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan 5 disc, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.
 - [Lubang, kawah, dan gosong pada dinding](https://makespritewithclaude.pages.dev/md/crater-hole.md): Menghapus piksel dengan tepi tak beraturan, menampilkan dinding belakang, bayangan kedalaman, gosong dither, serpihan berwarna asli, dan bara.
 - [Api dan asap dari partikel disc berlapis](https://makespritewithclaude.pages.dev/md/fire.md): Ramp 9 warna, partikel membesar saat menua, inti bergeser ke atas, highlight kecil, glow additive, dan asap.
 - [Hujan prosedural 3 lapis kedalaman](https://makespritewithclaude.pages.dev/md/rain.md): Tetes dua warna, tiga lapis kecepatan, kabut tanah ber-noise, percikan setengah elips, dan lapis depan yang menutupi karakter.
