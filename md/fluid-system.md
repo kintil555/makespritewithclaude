@@ -90,7 +90,8 @@ Aturan yang membuatnya benar: (a) **arah pindai kiri/kanan bergantian** tiap lan
 2. **Muka air** per kolom = sel teratas yang ditopang (bawahnya tidak kosong), dihaluskan `(l + 2a + r)/4` dan dibatasi ±1 dari sel mentah — ini juga menghilangkan kedipan permukaan. Lalu digeser oleh `PX.Surface` (`h[x]`): lembah hanya memotong sel air, puncak hanya mengisi sel kosong.
 3. **Saat `ev` datang**: `surface.splash(x, −sp·0.06)` (gelombang menjalar), `foam.add` (busa putih di muka air), `spray` (tetes bergravitasi; mendarat di air = riak kecil), dan `fizz.burst` (gelembung mikro terseret turun lalu naik). Beri jeda ~0,12 dtk per 4 kolom, kalau tidak aliran keran memicu semburan tiap sel.
 4. **Gelembung mikro** (`PX.Fizz`): titik 1 piksel (r < 0,9, berkedip) atau blok 2×2; naik dengan goyang kecil, hilang bila keluar dari sel air, pecah (riak + tetes kecil) bila mencapai muka air. `inWater(x, y)` dari sel membuat gelembung hanya hidup di dalam air berbentuk bebas.
-5. **Aduk**: geser acak sel air searah seretan, lalu `fizz.burst` + `splash` + `foam` sebanding kecepatan seretan.
+5. **Bejana berhubungan (penyamaan tinggi)**: gravitasi + aliran samping saja tidak membuat tinggi air sama di dua bejana yang tersambung, dan lambat meratakan genangan. Tambahkan `level()` setelah tiap langkah: beri label badan air (flood-fill 4 arah), cari muka tertinggi dan terendah per badan (sel air yang atasnya kosong, bawahnya terisi, `fall = 0` — sel aliran keran tidak ikut), lalu bila selisih ≥ 2 baris pindahkan sel dari muka tertinggi ke sel kosong tepat di atas muka terendah, maksimal `lvRate` sel per badan per langkah (debit penyamaan). Badan air yang terhubung lewat saluran bawah otomatis ikut turun/naik bersama: tambah air di satu bejana, semua naik. Hasil pindah dicatat (`lv`) dan dipakai memukul `surface.splash` (asal turun, tujuan naik) sehingga penyesuaian terlihat sebagai ombak, bukan air yang tiba-tiba hilang. Volume kekal (sel dipindah, tidak dibuat).
+6. **Aduk**: geser acak sel air searah seretan, lalu `fizz.burst` + `splash` + `foam` sebanding kecepatan seretan.
 
 Demo kolam di atas memakai hal yang sama: benda masuk air melepas busa dan gelembung mikro, tetes yang jatuh kembali kadang menyeret satu gelembung.
 
@@ -112,7 +113,7 @@ Demo kolam di atas memakai hal yang sama: benda masuk air melepas busa dan gelem
 2. Langkah tetap 1/60 untuk pegas; `spread < 0.5`.
 3. Benda: satu rumus `ay = g(1 − sub/rho)`; masuk air memicu percikan sekali.
 4. Gelembung: kecepatan, goyang, tumbuh, menyatu dengan `∛`, pecah dengan efek setengah elips; detail menurut ukuran.
-5. Air sel: pindai bawah→atas, arah bergantian, stamp, keran per langkah; catat pendaratan (`fall`) untuk gelombang, busa, percikan, dan gelembung mikro.
+5. Air sel (+ `level()` agar bejana berhubungan sama tinggi; sel jatuh dikecualikan): pindai bawah→atas, arah bergantian, stamp, keran per langkah; catat pendaratan (`fall`) untuk gelombang, busa, percikan, dan gelembung mikro.
 6. Satu fungsi tinggi permukaan dibagikan ke semua komponen.
 7. Lihat hasil render diperbesar sebelum menyetel angka.
 
@@ -206,7 +207,7 @@ PX.Bubbles = class {
 // (3) Air sel (cellular automata). g: 0 kosong, 1 air, 2 tembok. Pindai bawah->atas, arah kiri/kanan bergantian tiap langkah agar tidak miring sebelah.
 // fall[i] = berapa langkah sel itu jatuh berturut-turut. Saat berhenti (mendarat) dicatat ke ev = {x, y, v, water} -> sumber percikan, gelombang, gelembung.
 PX.CAWater = class {
-  constructor(w, h, seed = 3) { this.w = w; this.h = h; this.g = new Uint8Array(w * h); this.m = new Uint8Array(w * h); this.fall = new Uint8Array(w * h); this.ev = []; this.stamp = 0; this.dir = 0; this.flow = 4; this.R = PX.rng(seed); }
+  constructor(w, h, seed = 3) { this.w = w; this.h = h; this.g = new Uint8Array(w * h); this.m = new Uint8Array(w * h); this.fall = new Uint8Array(w * h); this.ev = []; this.lv = []; this.lvRate = 6; this.stamp = 0; this.dir = 0; this.flow = 4; this.R = PX.rng(seed); }
   step() {
     const { w, h, g, m, fall: fl, ev } = this; if (++this.stamp > 250) { this.stamp = 1; m.fill(0); } const st = this.stamp; this.dir ^= 1;
     for (let y = h - 2; y >= 0; y--) for (let k = 0; k < w; k++) {
@@ -219,6 +220,33 @@ PX.CAWater = class {
       }
       if (to !== b) { if (fl[i] >= 3 && ev.length < 48) ev.push({ x, y, v: fl[i], water: g[b] === 1 }); fl[i] = 0; }   // tidak lagi jatuh lurus = mendarat
       if (to >= 0) { g[to] = 1; g[i] = 0; m[to] = st; fl[to] = to === b ? Math.min(255, fl[i] + 1) : 0; fl[i] = 0; }
+    }
+    if (this.lvRate > 0) this.level();
+  }
+  // Bejana berhubungan: tiap badan air (sel air terhubung 4 arah) disamakan tingginya. Muka tertinggi di badan itu menyumbang sel,
+  // muka terendah menerimanya (sel diletakkan tepat di atasnya), selama selisih >= 2 baris. Maks lvRate sel per badan per langkah = debit penyamaan.
+  // Sel yang masih jatuh (fall > 0) dan sel tanpa topangan bukan muka air, jadi aliran keran tidak ikut "disedot". Posisi pindah dicatat di lv (x asal, x tujuan) untuk gelombang.
+  level() {
+    const { w, h, g, fall: fl, R } = this, n = w * h, lab = this.lab || (this.lab = new Int32Array(n)), stk = this.stk || (this.stk = new Int32Array(n)); lab.fill(0); let c = 0;
+    for (let s0 = 0; s0 < n; s0++) {
+      if (g[s0] !== 1 || lab[s0]) continue;
+      let sp = 0, hy = 1e9, ly = -1, S = [], K = []; stk[sp++] = s0; lab[s0] = ++c;
+      while (sp) {
+        const i = stk[--sp], x = i % w, y = (i / w) | 0;
+        if (y > 0 && y < h - 1 && g[i - w] === 0 && g[i + w] !== 0 && fl[i] === 0) {
+          if (y < hy) { hy = y; S = []; } if (y === hy) S.push(i);
+          if (y > ly) { ly = y; K = []; } if (y === ly) K.push(i);
+        }
+        if (x > 0 && g[i - 1] === 1 && !lab[i - 1]) { lab[i - 1] = c; stk[sp++] = i - 1; }
+        if (x < w - 1 && g[i + 1] === 1 && !lab[i + 1]) { lab[i + 1] = c; stk[sp++] = i + 1; }
+        if (y > 0 && g[i - w] === 1 && !lab[i - w]) { lab[i - w] = c; stk[sp++] = i - w; }
+        if (y < h - 1 && g[i + w] === 1 && !lab[i + w]) { lab[i + w] = c; stk[sp++] = i + w; }
+      }
+      if (ly - hy < 2) continue;
+      for (let m = Math.min(this.lvRate, (ly - hy) >> 1); m > 0 && S.length && K.length; m--) {
+        const a = S.splice((R() * S.length) | 0, 1)[0], b = K.splice((R() * K.length) | 0, 1)[0] - w;
+        g[a] = 0; g[b] = 1; fl[a] = fl[b] = 0; if (this.lv.length < 256) this.lv.push(a % w, b % w);
+      }
     }
   }
 };
@@ -307,7 +335,7 @@ PX.demos.fluid = (host) => {
 **Kode: `src/code/53-demo-waterca.js`**
 
 ```js
-// Demo air sel hibrida: badan air = sel (mengalir), muka air = pegas 1D (gelombang), tumbukan -> percikan + busa + gelembung mikro. Alat 'aduk' = mengobok air.
+// Demo air sel hibrida: badan air = sel (mengalir + penyamaan tinggi / bejana berhubungan), muka air = pegas 1D (gelombang), tumbukan -> percikan + busa + gelembung mikro. Alat 'aduk' = mengobok air.
 PX.demos.waterca = (host) => {
   const W = 128, H = 72, FL = H - 2, cv = PX.canvas(host, W, H, 768, false, 'Seret di atas kanvas untuk memakai alat'), c = cv.getContext('2d'), buf = new PX.Buf(W, H), p = PX.pointer(cv);
   const sim = new PX.CAWater(W, H), g = sim.g, lit = new PX.Light(W, H), wat = new PX.Water(0, W, 0, FL), sc = PX.poolScene(W, H, H * 0.45, () => FL), P = PX.WATER;
@@ -317,12 +345,19 @@ PX.demos.waterca = (host) => {
   const inW = (x, y) => x >= 0 && y >= 0 && x < W && y < H && g[y * W + x] === 1 && !(top[x] >= 0 && y < top[x]);
   const spray = (x, y, v, n) => { for (let i = 0; i < n && drops.length < 400; i++) drops.push({ x: x + rg(-1.5, 1.5), y: y - 1, vx: rg(-30, 30), vy: -(30 + rg(0.3, 1) * Math.min(70, v * 3)) }); };
   const fizz = new PX.Fizz(inW, (x) => { surf.splash(x, -0.05); foam.add(x, 0.1, 1); if (R() < 0.4) spray(x, top[x] >= 0 ? top[x] : 0, 4, 1); });
-  let tool = 'water', faucet = true, caus = true, t = 0, px0 = 0, py0 = 0;
-  const build = () => { g.fill(0); sim.fall.fill(0); drops.length = 0; fizz.list.length = 0; surf.h.fill(0); surf.v.fill(0); foam.f.fill(0);
-    for (let x = 0; x < W; x++) g[(H - 1) * W + x] = g[(H - 2) * W + x] = 2; for (let y = 0; y < H; y++) g[y * W] = g[y * W + W - 1] = 2; for (let x = 24; x < 72; x++) g[44 * W + x] = g[45 * W + x] = 2; for (let y = 30; y < 46; y++) g[y * W + 90] = g[y * W + 91] = 2; };
+  let tool = 'water', faucet = true, caus = true, t = 0, px0 = 0, py0 = 0, fx = 40, fq = 4;
+  const box = (x0, x1, y0, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) g[y * W + x] = 2; };
+  const build = (layout) => { g.fill(0); sim.fall.fill(0); drops.length = 0; fizz.list.length = 0; surf.h.fill(0); surf.v.fill(0); foam.f.fill(0); fx = 40;
+    box(0, W - 1, H - 2, H - 1); box(0, 0, 0, H - 1); box(W - 1, W - 1, 0, H - 1);
+    if (layout === 'vessels') {                                                                                // 5 bejana beda lebar, tersambung saluran di bawah (sekat berhenti di y=66); A penuh, sisanya kosong
+      box(97, 97, 0, H - 1); box(W - 1, W - 1, 0, H - 1); box(7, 8, 4, 66); box(29, 30, 26, 66); box(43, 44, 18, 66); box(75, 76, 34, 66); fx = 14;
+      for (let y = 6; y < FL; y++) for (let x = 1; x <= 6; x++) g[y * W + x] = 1;
+    } else { box(24, 71, 44, 45); box(90, 91, 30, 45); } };
   const ui = PX.ui(host);
   ui.select('Alat', [{ label: 'tuang air', value: 'water' }, { label: 'aduk', value: 'stir' }, { label: 'tembok', value: 'wall' }, { label: 'hapus', value: 'erase' }], tool, (v) => (tool = v));
-  ui.range('Aliran samping', 1, 8, 1, sim.flow, (v) => (sim.flow = v)); ui.check('Keran', true, (v) => (faucet = v)); ui.check('Caustic', true, (v) => (caus = v)); ui.button('Reset', build);
+  ui.range('Aliran samping', 1, 8, 1, sim.flow, (v) => (sim.flow = v)); ui.range('Penyamaan tinggi', 0, 12, 1, sim.lvRate, (v) => (sim.lvRate = v)); ui.range('Debit keran', 1, 4, 1, fq, (v) => (fq = v));
+  const fc = ui.check('Keran', true, (v) => (faucet = v)); ui.check('Caustic', true, (v) => (caus = v));
+  ui.button('Reset', () => build()); ui.button('Bejana berhubungan', () => { build('vessels'); faucet = fc.checked = false; });
   build();
   const impacts = () => {                                                                                       // sel jatuh mendarat -> gelombang, busa, gelembung terseret, percikan
     for (const e of sim.ev) {
@@ -359,7 +394,10 @@ PX.demos.waterca = (host) => {
       const ts = top[mx]; if (ts >= 0 && Math.abs(my - ts) < 7) { surf.splash(mx, -Math.min(1.2, sp * 0.1)); foam.add(mx, Math.min(0.6, sp * 0.05), 3); if (R() < Math.min(1, sp * 0.1)) spray(mx, ts, sp * 2, 1); }
     }
     px0 = mx; py0 = my;
-    for (let k = 0; k < 2; k++) { if (faucet) for (let x = 40; x < 44; x++) if (g[2 * W + x] === 0) { g[2 * W + x] = 1; sim.fall[2 * W + x] = 0; } sim.step(); }   // keran menyuntik tiap langkah -> aliran utuh
+    for (let k = 0; k < 2; k++) { if (faucet) for (let x = fx; x < fx + fq; x++) if (g[2 * W + x] === 0) { g[2 * W + x] = 1; sim.fall[2 * W + x] = 0; } sim.step(); }   // keran menyuntik tiap langkah -> aliran utuh
+    for (let k = 0; k < sim.lv.length; k += 2) { surf.splash(sim.lv[k], -0.04); surf.splash(sim.lv[k + 1], 0.04); }      // penyamaan tinggi: muka asal turun, muka tujuan naik -> ombak
+    sim.lv.length = 0;
+    for (let x = 0; x < W; x++) surf.v[x] = PX.clamp(surf.v[x], -1.5, 1.5);
     impacts(); surf.update(dt); surface(); fizz.update(dt); foam.update(dt);
     for (let i = drops.length - 1; i >= 0; i--) {                                                                 // tetes: gravitasi; jatuh ke air = riak + busa + kadang gelembung
       const d = drops[i]; d.vy += 220 * dt; d.x += d.vx * dt; d.y += d.vy * dt; const ix = Math.round(d.x), iy = Math.round(d.y);

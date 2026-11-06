@@ -83,7 +83,7 @@ PX.Bubbles = class {
 // (3) Air sel (cellular automata). g: 0 kosong, 1 air, 2 tembok. Pindai bawah->atas, arah kiri/kanan bergantian tiap langkah agar tidak miring sebelah.
 // fall[i] = berapa langkah sel itu jatuh berturut-turut. Saat berhenti (mendarat) dicatat ke ev = {x, y, v, water} -> sumber percikan, gelombang, gelembung.
 PX.CAWater = class {
-  constructor(w, h, seed = 3) { this.w = w; this.h = h; this.g = new Uint8Array(w * h); this.m = new Uint8Array(w * h); this.fall = new Uint8Array(w * h); this.ev = []; this.stamp = 0; this.dir = 0; this.flow = 4; this.R = PX.rng(seed); }
+  constructor(w, h, seed = 3) { this.w = w; this.h = h; this.g = new Uint8Array(w * h); this.m = new Uint8Array(w * h); this.fall = new Uint8Array(w * h); this.ev = []; this.lv = []; this.lvRate = 6; this.stamp = 0; this.dir = 0; this.flow = 4; this.R = PX.rng(seed); }
   step() {
     const { w, h, g, m, fall: fl, ev } = this; if (++this.stamp > 250) { this.stamp = 1; m.fill(0); } const st = this.stamp; this.dir ^= 1;
     for (let y = h - 2; y >= 0; y--) for (let k = 0; k < w; k++) {
@@ -96,6 +96,33 @@ PX.CAWater = class {
       }
       if (to !== b) { if (fl[i] >= 3 && ev.length < 48) ev.push({ x, y, v: fl[i], water: g[b] === 1 }); fl[i] = 0; }   // tidak lagi jatuh lurus = mendarat
       if (to >= 0) { g[to] = 1; g[i] = 0; m[to] = st; fl[to] = to === b ? Math.min(255, fl[i] + 1) : 0; fl[i] = 0; }
+    }
+    if (this.lvRate > 0) this.level();
+  }
+  // Bejana berhubungan: tiap badan air (sel air terhubung 4 arah) disamakan tingginya. Muka tertinggi di badan itu menyumbang sel,
+  // muka terendah menerimanya (sel diletakkan tepat di atasnya), selama selisih >= 2 baris. Maks lvRate sel per badan per langkah = debit penyamaan.
+  // Sel yang masih jatuh (fall > 0) dan sel tanpa topangan bukan muka air, jadi aliran keran tidak ikut "disedot". Posisi pindah dicatat di lv (x asal, x tujuan) untuk gelombang.
+  level() {
+    const { w, h, g, fall: fl, R } = this, n = w * h, lab = this.lab || (this.lab = new Int32Array(n)), stk = this.stk || (this.stk = new Int32Array(n)); lab.fill(0); let c = 0;
+    for (let s0 = 0; s0 < n; s0++) {
+      if (g[s0] !== 1 || lab[s0]) continue;
+      let sp = 0, hy = 1e9, ly = -1, S = [], K = []; stk[sp++] = s0; lab[s0] = ++c;
+      while (sp) {
+        const i = stk[--sp], x = i % w, y = (i / w) | 0;
+        if (y > 0 && y < h - 1 && g[i - w] === 0 && g[i + w] !== 0 && fl[i] === 0) {
+          if (y < hy) { hy = y; S = []; } if (y === hy) S.push(i);
+          if (y > ly) { ly = y; K = []; } if (y === ly) K.push(i);
+        }
+        if (x > 0 && g[i - 1] === 1 && !lab[i - 1]) { lab[i - 1] = c; stk[sp++] = i - 1; }
+        if (x < w - 1 && g[i + 1] === 1 && !lab[i + 1]) { lab[i + 1] = c; stk[sp++] = i + 1; }
+        if (y > 0 && g[i - w] === 1 && !lab[i - w]) { lab[i - w] = c; stk[sp++] = i - w; }
+        if (y < h - 1 && g[i + w] === 1 && !lab[i + w]) { lab[i + w] = c; stk[sp++] = i + w; }
+      }
+      if (ly - hy < 2) continue;
+      for (let m = Math.min(this.lvRate, (ly - hy) >> 1); m > 0 && S.length && K.length; m--) {
+        const a = S.splice((R() * S.length) | 0, 1)[0], b = K.splice((R() * K.length) | 0, 1)[0] - w;
+        g[a] = 0; g[b] = 1; fl[a] = fl[b] = 0; if (this.lv.length < 256) this.lv.push(a % w, b % w);
+      }
     }
   }
 };

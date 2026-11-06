@@ -90,7 +90,8 @@ Aturan yang membuatnya benar: (a) **arah pindai kiri/kanan bergantian** tiap lan
 2. **Muka air** per kolom = sel teratas yang ditopang (bawahnya tidak kosong), dihaluskan `(l + 2a + r)/4` dan dibatasi ±1 dari sel mentah — ini juga menghilangkan kedipan permukaan. Lalu digeser oleh `PX.Surface` (`h[x]`): lembah hanya memotong sel air, puncak hanya mengisi sel kosong.
 3. **Saat `ev` datang**: `surface.splash(x, −sp·0.06)` (gelombang menjalar), `foam.add` (busa putih di muka air), `spray` (tetes bergravitasi; mendarat di air = riak kecil), dan `fizz.burst` (gelembung mikro terseret turun lalu naik). Beri jeda ~0,12 dtk per 4 kolom, kalau tidak aliran keran memicu semburan tiap sel.
 4. **Gelembung mikro** (`PX.Fizz`): titik 1 piksel (r < 0,9, berkedip) atau blok 2×2; naik dengan goyang kecil, hilang bila keluar dari sel air, pecah (riak + tetes kecil) bila mencapai muka air. `inWater(x, y)` dari sel membuat gelembung hanya hidup di dalam air berbentuk bebas.
-5. **Aduk**: geser acak sel air searah seretan, lalu `fizz.burst` + `splash` + `foam` sebanding kecepatan seretan.
+5. **Bejana berhubungan (penyamaan tinggi)**: gravitasi + aliran samping saja tidak membuat tinggi air sama di dua bejana yang tersambung, dan lambat meratakan genangan. Tambahkan `level()` setelah tiap langkah: beri label badan air (flood-fill 4 arah), cari muka tertinggi dan terendah per badan (sel air yang atasnya kosong, bawahnya terisi, `fall = 0` — sel aliran keran tidak ikut), lalu bila selisih ≥ 2 baris pindahkan sel dari muka tertinggi ke sel kosong tepat di atas muka terendah, maksimal `lvRate` sel per badan per langkah (debit penyamaan). Badan air yang terhubung lewat saluran bawah otomatis ikut turun/naik bersama: tambah air di satu bejana, semua naik. Hasil pindah dicatat (`lv`) dan dipakai memukul `surface.splash` (asal turun, tujuan naik) sehingga penyesuaian terlihat sebagai ombak, bukan air yang tiba-tiba hilang. Volume kekal (sel dipindah, tidak dibuat).
+6. **Aduk**: geser acak sel air searah seretan, lalu `fizz.burst` + `splash` + `foam` sebanding kecepatan seretan.
 
 Demo kolam di atas memakai hal yang sama: benda masuk air melepas busa dan gelembung mikro, tetes yang jatuh kembali kadang menyeret satu gelembung.
 
@@ -112,7 +113,7 @@ Demo kolam di atas memakai hal yang sama: benda masuk air melepas busa dan gelem
 2. Langkah tetap 1/60 untuk pegas; `spread < 0.5`.
 3. Benda: satu rumus `ay = g(1 − sub/rho)`; masuk air memicu percikan sekali.
 4. Gelembung: kecepatan, goyang, tumbuh, menyatu dengan `∛`, pecah dengan efek setengah elips; detail menurut ukuran.
-5. Air sel: pindai bawah→atas, arah bergantian, stamp, keran per langkah; catat pendaratan (`fall`) untuk gelombang, busa, percikan, dan gelembung mikro.
+5. Air sel (+ `level()` agar bejana berhubungan sama tinggi; sel jatuh dikecualikan): pindai bawah→atas, arah bergantian, stamp, keran per langkah; catat pendaratan (`fall`) untuk gelombang, busa, percikan, dan gelembung mikro.
 6. Satu fungsi tinggi permukaan dibagikan ke semua komponen.
 7. Lihat hasil render diperbesar sebelum menyetel angka.
 
