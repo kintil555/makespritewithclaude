@@ -130,7 +130,7 @@ PX.demos.pulsar = (host) => {
     TEX[y * TW + x] = PX.clamp((f - 0.5) * 5, 0, 1);                                // bercak: hanya puncak fbm (≈15% area) -> bola bersih, bercak sedikit
   }
   const motes = Array.from({ length: 16 }, () => ({ d: Math.random() * HR, a: Math.random() * 6.283, sp: 1 + Math.random() * 1.5, w: (Math.random() - 0.5) * 0.25 }));
-  const put = (x, y, ci) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4, k = V[ci]; img.data[i] = k[0]; img.data[i + 1] = k[1]; img.data[i + 2] = k[2]; img.data[i + 3] = 255; };
+  const put = (x, y, ci, al = 255) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4, k = V[ci]; img.data[i] = k[0]; img.data[i + 1] = k[1]; img.data[i + 2] = k[2]; img.data[i + 3] = al; };
   PX.loop(host, (dt, t) => {
     img.data.fill(0); lit.clear();
     const sw = Math.tanh(SNAP * Math.sin(t * FREQ)) / NORM, th = BASE + SWING * sw, ca = Math.cos(th), sa = Math.sin(th), tilt = 0.7 + 0.3 * Math.abs(Math.cos(t * 0.6)), Lb = 56 * tilt;
@@ -148,11 +148,11 @@ PX.demos.pulsar = (host) => {
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {                        // halo dither di luar bola: kerapatan turun ke luar, dimodulasi noise yang bergeser SANGAT pelan
       const d = Math.hypot(x + 0.5 - CX, y + 0.5 - CY) - R; if (d < 0.5 || d > HR) continue;
       const f = 1 - d / HR, dens = (Math.pow(f, 1.5) * (0.04 + 0.38 * PX.vnoise(x / 7 + t * 0.1, y / 7 - t * 0.07, 3)) + 0.4 * Math.pow(f, 4)) * (0.85 + 0.15 * pulse);   // + suku f^4: lebih padat tepat di dekat bola
-      if (dens > PX.bayer(x, y)) put(x, y, f > 0.8 ? 4 : f > 0.45 ? 1 : 0);   // lapisan awal biru muda keputihan, lalu langsung biru lebih gelap
+      if (dens > PX.bayer(x, y)) put(x, y, f > 0.8 ? 2 : f > 0.45 ? 1 : 0, 255 * (0.6 + 0.4 * PX.hash(x, y, 5)));   // lapisan awal biru terang, lalu langsung biru lebih gelap; opasitas 60–100%
     }
     for (const q of motes) {                                                         // partikel kecil melayang keluar dengan lambat (2–4 px/s) sambil mengorbit pelan
       q.d += q.sp * dt; q.a += q.w * dt; if (q.d > HR) { q.d = 1; q.a = Math.random() * 6.283; }
-      const rr = R + q.d, f = 1 - q.d / HR; put(CX + Math.cos(q.a) * rr, CY + Math.sin(q.a) * rr, f > 0.8 ? 4 : f > 0.45 ? 1 : 0);
+      const rr = R + q.d, f = 1 - q.d / HR; put(CX + Math.cos(q.a) * rr, CY + Math.sin(q.a) * rr, f > 0.8 ? 2 : f > 0.45 ? 1 : 0, 200);
     }
     for (let i = rings.length - 1; i >= 0; i--) {                                    // cincin kejut dari bola
       const q = rings[i]; q.t += dt; const u = q.t / 0.7; if (u >= 1) { rings.splice(i, 1); continue; }
@@ -196,7 +196,7 @@ PX.demos.pulsar = (host) => {
       const k = PX.clamp((0.62 + 0.2 * nz - 0.55 * sp - 0.3 * cn_ - 0.4 * sh) * (1 - 0.5 * rim * rim), 0, 1);                      // bola BERCAHAYA: tanpa arah cahaya; terang di tengah, makin gelap ke tepi
       let ci = 2 + PX.tone(k, tx, ty, 4, 0.7);                                                                  // dither di koordinat TEKSTUR (bukan layar) -> pola dither ikut berputar
       if (r2 < 0.72) { if (pn < 0.06) ci = Math.max(3, ci - 1); else if (pn > 0.97) ci = 5; }   // sedikit butiran putih-kebiruan di dalam bola (jarang), berputar bersama bola
-      if (r2 > 0.6 && fl > 0.9) ci = fl > 0.96 ? 5 : 4;                                                   // sedikit putih di pinggiran (berputar bersama bola)
+      if (r2 > 0.6 && fl > 0.9) ci = fl > 0.96 ? 4 : 3;                                                   // sedikit putih di pinggiran (berputar bersama bola)
       else if (r2 > 0.88) ci = Math.min(ci, fl > 0.5 ? 3 : 2);                                              // pinggiran luar: biru gelap
       put(X, Y, ci);
     }
