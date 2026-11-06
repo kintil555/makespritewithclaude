@@ -49,7 +49,7 @@
 <li><strong>Garis medan dipol 3D</strong>: <code>r = s·cos²λ</code>; tiap garis punya azimut <code>φ</code> mengelilingi sumbu. Posisi 3D = <code>r·sinλ·a + r·cosλ·(cosφ·p + sinφ·q)</code> (<code>a</code> sumbu miring ke kamera, <code>p</code>,<code>q</code> basis tegak lurus), diproyeksikan ortografis. <code>z&gt;0</code> digambar <strong>setelah</strong> bola (menimpa), <code>z&lt;0</code> digambar <strong>sebelum</strong> bola (tertutup) dan lebih gelap; titik dengan <code>r&lt;R</code> dibuang. <code>φ</code> berputar pelan sehingga garis tampak memutari bola. Dash mengalir sepanjang garis (<code>(k + arah·t·70) mod 40</code>), kepala dash diberi <code>lit.glow</code>.</li>
 <li><strong>Ayunan smooth</strong>: <code>SNAP</code> kecil (mendekati sinus) + interpolasi sub-langkah: sudut frame lalu→sekarang dibagi 5, tiap sinar dirender di semua sub-sudut (yang lama lebih redup) dan diambil nilai maksimum → jejak halus tanpa loncatan.</li>
 <li><strong>Efek</strong>: halo cahaya berdenyut, cincin + percikan di tiap ujung ayunan, bintang latar berkedip.</li>
-<li><strong>Bola berputar cepat</strong>: peta tekstur lon/lat (64×32, di-bake sekali dengan <code>fbm</code> yang tile di sumbu lon). Tiap piksel dipetakan terbalik ke titik bola <code>(nx,ny,nz)</code>, sumbu putar dimiringkan, <code>lon = atan2(ax,nz) + t·ω</code>, <code>lat = asin(ay)</code>, lalu ambil texel. Cahaya tetap, tekstur berputar (ω = 10 rad/s). <code>k = 0.08 + 0.5·l + (tex−0.5)·0.6</code> → <code>PX.tone</code> ke ramp 6 warna. <strong>Pinggiran</strong>: <code>rim = (r²−0.45)/0.55</code>, <code>k ×= 1 − 0.85·rim²</code> sehingga tepi menjadi biru gelap; <code>r²&gt;0.8</code> dipaksa ke 2 warna tergelap; bintik putih = <code>hash(tx&gt;&gt;1, ty&gt;&gt;1) &gt; 0.9</code> pada <code>r²&gt;0.6</code>. Karena bintik di-hash dari koordinat <strong>tekstur</strong> (bukan layar), pinggiran gelap + putih ikut berputar bersama bola.</li>
+<li><strong>Bola berputar cepat</strong>: peta tekstur lon/lat (64×32, di-bake sekali dengan <code>fbm</code> yang tile di sumbu lon). Tiap piksel dipetakan terbalik ke titik bola <code>(nx,ny,nz)</code>, sumbu putar dimiringkan, <code>lon = atan2(ax,nz) + t·ω</code>, <code>lat = asin(ay)</code>, lalu ambil texel. Cahaya tetap, tekstur berputar (ω = 10 rad/s). <code>k = 0.06 + 0.42·l + (tex−0.5)·0.85</code> → <code>PX.tone(k, x, y, 5, 0.9)</code>: dither Bayer lebar pada 5 warna (tanpa putih penuh) sehingga pola dither terlihat dan bola tidak biru-keputihan rata. <strong>Halo luar</strong>: tiap piksel di <code>R..R+17</code> menyala jika <code>(1−d/17)^1.5 · noise(x/7 + 0.1t, y/7 − 0.07t) &gt; bayer(x,y)</code> — noise bergeser sangat pelan; ditambah ±46 partikel yang melayang keluar 1.5–4 px/s. <strong>Pinggiran</strong>: <code>rim = (r²−0.45)/0.55</code>, <code>k ×= 1 − 0.85·rim²</code> sehingga tepi menjadi biru gelap; <code>r²&gt;0.8</code> dipaksa ke 2 warna tergelap; bintik putih = <code>hash(tx&gt;&gt;1, ty&gt;&gt;1) &gt; 0.9</code> pada <code>r²&gt;0.6</code>. Karena bintik di-hash dari koordinat <strong>tekstur</strong> (bukan layar), pinggiran gelap + putih ikut berputar bersama bola.</li>
 </ul>
 <div class="demo" data-demo="pulsar"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
 <h2>Kode</h2>
@@ -129,19 +129,20 @@ PX.demos.neutron = (host) =&gt; {
 PX.demos.pulsar = (host) =&gt; {
   const W = 128, H = 72, cv = PX.canvas(host, W, H, 640), c = cv.getContext('2d'), img = c.createImageData(W, H), lit = new PX.Light(W, H);
   cv.style.background = '#0a0a16';
-  const V = ['#241a66', '#2f3cb4', '#4f7bff', '#8fcbff', '#dff2ff', '#ffffff'].map(PX.hex), CX = W / 2, CY = H / 2, R = 9;
+  const V = ['#241a66', '#2f3cb4', '#4f7bff', '#8fcbff', '#dff2ff', '#ffffff'].map(PX.hex), CX = W / 2, CY = H / 2, R = 13, HR = 17;   // R: radius bola, HR: tebal halo dither di luar bola
   const BASE = -0.72, SWING = Math.PI / 8, FREQ = 8.5, SNAP = 0.9;               // sumbu miring, amplitudo 22.5°, ayunan cepat (periode ≈ 0.74 s), SNAP kecil = gerak halus (mendekati sinus)
   const NORM = Math.tanh(SNAP), sparks = [], rings = [], NSUB = 5, TAU = 0.5, CT = Math.cos(TAU), ST = Math.sin(TAU); let prevCos = 1, thPrev = null;   // NSUB: sub-langkah interpolasi sudut per frame; TAU: sumbu miring ke arah kamera (untuk medan 3D)
-  const SPIN = 10, AXT = 0.35, TW = 64, TH = 32, TEX = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
+  const SPIN = 10, AXT = 0.35, TW = 96, TH = 48, TEX = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
   for (let y = 0; y &lt; TH; y++) for (let x = 0; x &lt; TW; x++) {                       // bake SEKALI: peta lon/lat (tile di lon). fbm besar + kontras -&gt; bercak gelap &amp; titik panas yang jelas saat berputar
-    const f = PX.fbm(x / 8, y / 8, 21, TW / 8, 0, 3), hot = PX.fbm(x / 5, y / 5, 47, TW / 5 | 0, 0, 2);
+    const f = PX.fbm(x / 12, y / 12, 21, TW / 12, 0, 4), hot = PX.fbm(x / 8, y / 8, 47, TW / 8, 0, 3);   // oktaf lebih banyak -&gt; bercak lebih beragam
     TEX[y * TW + x] = PX.clamp((f - 0.5) * 2.6 + 0.5 - Math.max(0, hot - 0.62) * 1.6 + Math.max(0, 0.3 - hot) * 1.4, 0, 1);
   }
+  const motes = Array.from({ length: 46 }, () =&gt; ({ d: Math.random() * HR, a: Math.random() * 6.283, sp: 1.5 + Math.random() * 2.5, w: (Math.random() - 0.5) * 0.25 }));
   const put = (x, y, ci) =&gt; { x = Math.round(x); y = Math.round(y); if (x &lt; 0 || y &lt; 0 || x &gt;= W || y &gt;= H) return; const i = (y * W + x) * 4, k = V[ci]; img.data[i] = k[0]; img.data[i + 1] = k[1]; img.data[i + 2] = k[2]; img.data[i + 3] = 255; };
   PX.loop(host, (dt, t) =&gt; {
     img.data.fill(0); lit.clear();
     const sw = Math.tanh(SNAP * Math.sin(t * FREQ)) / NORM, th = BASE + SWING * sw, ca = Math.cos(th), sa = Math.sin(th), tilt = 0.7 + 0.3 * Math.abs(Math.cos(t * 0.6)), Lb = 56 * tilt;
-    const speed = Math.abs(Math.cos(t * FREQ)), pulse = 0.5 + 0.5 * Math.sin(t * 5);   // speed: 1 saat menyapu cepat, 0 di ujung ayunan
+    const speed = Math.abs(Math.cos(t * FREQ)), pulse = 0.5 + 0.5 * Math.sin(t * 0.9);   // speed: 1 saat menyapu cepat, 0 di ujung ayunan
     const cn = Math.cos(t * FREQ);                                                  // ujung ayunan: cos berganti tanda -&gt; cincin + percikan dari kedua ujung sinar
     if (cn * prevCos &lt; 0) {
       rings.push({ t: 0 });
@@ -151,6 +152,15 @@ PX.demos.pulsar = (host) =&gt; {
     for (let i = 0; i &lt; 46; i++) {                                                   // bintang latar berkedip
       const sx = (PX.hash(i, 1, 77) * W) | 0, sy = (PX.hash(i, 2, 77) * H) | 0;
       if (PX.hash(i, Math.floor(t * 3 + i), 78) &gt; 0.35) put(sx, sy, PX.hash(i, 3, 77) &lt; 0.2 ? 2 : 0);
+    }
+    for (let y = 0; y &lt; H; y++) for (let x = 0; x &lt; W; x++) {                        // halo dither di luar bola: kerapatan turun ke luar, dimodulasi noise yang bergeser SANGAT pelan
+      const d = Math.hypot(x + 0.5 - CX, y + 0.5 - CY) - R; if (d &lt; 0.5 || d &gt; HR) continue;
+      const f = 1 - d / HR, dens = Math.pow(f, 1.5) * (0.1 + 0.65 * PX.vnoise(x / 7 + t * 0.1, y / 7 - t * 0.07, 3)) * (0.85 + 0.15 * pulse);
+      if (dens &gt; PX.bayer(x, y)) put(x, y, f &gt; 0.6 ? 2 : f &gt; 0.3 ? 1 : 0);
+    }
+    for (const q of motes) {                                                         // partikel kecil melayang keluar dengan lambat (2–4 px/s) sambil mengorbit pelan
+      q.d += q.sp * dt; q.a += q.w * dt; if (q.d &gt; HR) { q.d = 1; q.a = Math.random() * 6.283; }
+      const rr = R + q.d, f = 1 - q.d / HR; put(CX + Math.cos(q.a) * rr, CY + Math.sin(q.a) * rr, f &gt; 0.6 ? 3 : f &gt; 0.3 ? 2 : 1);
     }
     for (let i = rings.length - 1; i &gt;= 0; i--) {                                    // cincin kejut dari bola
       const q = rings[i]; q.t += dt; const u = q.t / 0.7; if (u &gt;= 1) { rings.splice(i, 1); continue; }
@@ -169,7 +179,7 @@ PX.demos.pulsar = (host) =&gt; {
       if (I &gt; PX.bayer(x, y) * 0.9) put(x, y, Math.min(5, Math.floor(I * 6)));
     }
     const front = [], PXX = -sa, PYY = ca;                                           // medan dipol 3D: tiap garis punya azimut φ mengelilingi sumbu; titik belakang digambar sebelum bola (tertutup), titik depan sesudahnya
-    [15, 22, 31].forEach((s0, si) =&gt; {                                               // r = s·cos²λ; posisi = al·sumbu + pe·(cosφ·p + sinφ·q); z&gt;0 = menghadap kamera
+    [20, 29, 40].forEach((s0, si) =&gt; {                                               // r = s·cos²λ; posisi = al·sumbu + pe·(cosφ·p + sinφ·q); z&gt;0 = menghadap kamera
       const s = s0 * (1 + 0.05 * Math.sin(t * 6 + si)), dir = si % 2 ? -1 : 1, NA = 5;
       for (let a = 0; a &lt; NA; a++) {
         const phi = (a / NA) * 6.2832 + si * 0.6 + t * 0.9 * dir, cp = Math.cos(phi), sp = Math.sin(phi);   // azimut berputar pelan: garis tampak memutari bola
@@ -189,8 +199,8 @@ PX.demos.pulsar = (host) =&gt; {
       const ax = nx * CA_ + ny * SA_, ay = -nx * SA_ + ny * CA_, lon = Math.atan2(ax, nz) + t * SPIN, lat = Math.asin(PX.clamp(ay, -1, 1));   // pemetaan terbalik: piksel -&gt; titik bola (sumbu miring) -&gt; lon/lat
       const tu = (((lon / 6.2832) % 1) + 1) % 1, tx = (tu * TW) | 0, ty = PX.clamp(((lat / Math.PI + 0.5) * TH) | 0, 0, TH - 1);
       const rim = PX.clamp((r2 - 0.45) / 0.55, 0, 1), fl = PX.hash(tx &gt;&gt; 1, ty &gt;&gt; 1, 91);                    // rim: 0 di tengah -&gt; 1 di tepi; fl: bintik tetap di tekstur, jadi ikut berputar
-      const k = PX.clamp((0.08 + 0.5 * l + (TEX[ty * TW + tx] - 0.5) * 0.6) * (1 - 0.85 * rim * rim), 0, 1);   // cahaya tetap, tekstur berputar, makin gelap ke tepi
-      let ci = PX.tone(k, X, Y, 6, 0.3);
+      const k = PX.clamp((0.06 + 0.42 * l + (TEX[ty * TW + tx] - 0.5) * 0.85) * (1 - 0.85 * rim * rim), 0, 1);   // cahaya tetap, tekstur berputar (kontras tinggi), makin gelap ke tepi; puncak tidak putih penuh
+      let ci = PX.tone(k, X, Y, 5, 0.9);                                                                    // dither Bayer lebar (5 warna, tanpa putih) -&gt; terlihat pola dither di seluruh bola
       if (r2 &gt; 0.6 &amp;&amp; fl &gt; 0.9) ci = fl &gt; 0.96 ? 5 : 4;                                                   // sedikit putih di pinggiran (berputar bersama bola)
       else if (r2 &gt; 0.8) ci = Math.min(ci, fl &gt; 0.5 ? 1 : 0);                                              // pinggiran luar: biru gelap
       put(X, Y, ci);
@@ -201,7 +211,7 @@ PX.demos.pulsar = (host) =&gt; {
       const s = sparks[i]; s.life -= dt; if (s.life &lt;= 0) { sparks.splice(i, 1); continue; }
       s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 1 - 1.5 * dt; s.vy *= 1 - 1.5 * dt; put(s.x, s.y, s.life &gt; s.m * 0.6 ? 5 : s.life &gt; s.m * 0.3 ? 3 : 2);
     }
-    lit.glow(CX, CY, 26 + 4 * pulse, V[1], 0.3 + 0.12 * pulse);   // cahaya: halo bintang + titik terang sepanjang sinar (lebih terang saat menyapu cepat)
+    lit.glow(CX, CY, 34 + 4 * pulse, V[1], 0.22 + 0.08 * pulse);   // cahaya: halo bintang + titik terang sepanjang sinar (lebih terang saat menyapu cepat)
     for (const sg of [-1, 1]) { lit.glow(CX + ca * sg * Lb * 0.35, CY + sa * sg * Lb * 0.35, 16, V[3], 0.14 + 0.16 * speed); lit.glow(CX + ca * sg * Lb * 0.75, CY + sa * sg * Lb * 0.75, 10, V[2], 0.1 + 0.12 * speed); }
     c.putImageData(img, 0, 0); lit.flush(c);
   });
