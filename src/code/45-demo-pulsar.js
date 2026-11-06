@@ -6,7 +6,6 @@ PX.demos.pulsar = (host) => {
   const V = ['#241a66', '#2f3cb4', '#4f7bff', '#8fcbff', '#dff2ff', '#ffffff'].map(PX.hex), CX = W / 2, CY = H / 2, R = 18, HR = 12;   // R: radius bola, HR: tebal halo dither di luar bola
   const BASE = -0.72, SWING = Math.PI / 8, SNAP = 0.9, LOOP = 6, TP = (2 * Math.PI) / LOOP, FREQ = 8 * TP;   // LOOP: periode animasi (s). Semua frekuensi = kelipatan bulat 2π/LOOP -> animasi persis berulang tiap LOOP detik (dasar GIF loop mulus). FREQ ≈ 8.4 rad/s               // sumbu miring, amplitudo 22.5°, ayunan cepat (periode ≈ 0.74 s), SNAP kecil = gerak halus (mendekati sinus)
   const NORM = Math.tanh(SNAP), NSUB = 5, TAU = 0.5, CT = Math.cos(TAU), ST = Math.sin(TAU);   // NSUB: sub-langkah interpolasi sudut per frame; TAU: sumbu miring ke arah kamera (untuk medan 3D)
-  const LN = Math.hypot(-0.45, -0.55, 0.7), LX = -0.45 / LN, LY = -0.55 / LN, LZ = 0.7 / LN;   // arah cahaya bola (kiri-atas, ke arah kamera)
   const SPIN = 10 * TP, AXT = 0.35, TW = 96, TH = 48, TEX = new Float32Array(TW * TH), CON = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
   for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {                       // bake SEKALI: peta lon/lat (tile di lon). fbm besar + kontras -> bercak gelap & titik panas yang jelas saat berputar
     const f = PX.fbm(x / 12, y / 12, 21, TW / 12, 0, 4);
@@ -70,12 +69,12 @@ PX.demos.pulsar = (host) => {
       const nz = Math.sqrt(1 - r2), X = x + CX | 0, Y = y + CY | 0;
       const ax = nx * CA_ + ny * SA_, ay = -nx * SA_ + ny * CA_, lon = Math.atan2(ax, nz) + t * SPIN, lat = Math.asin(PX.clamp(ay, -1, 1));   // pemetaan terbalik: piksel -> titik bola (sumbu miring) -> lon/lat
       const tu = (((lon / 6.2832) % 1) + 1) % 1, tx = (tu * TW) | 0, ty = PX.clamp(((lat / Math.PI + 0.5) * TH) | 0, 0, TH - 1);
-      const fl = PX.hash(tx >> 1, ty >> 1, 91), sp = Math.min(1, TEX[ty * TW + tx] + CON[ty * TW + tx]), pn = PX.hash(tx, ty, 123);   // fl: bintik tetap di tekstur; sp: bercak; pn: butiran halus -> semuanya ikut berputar
-      const l = Math.max(0, nx * LX + ny * LY + nz * LZ);                                                  // Lambert dari kiri-atas (seperti artikel dither-palette): terang di kiri-atas, bayangan di kanan-bawah
-      const k = PX.clamp(0.04 + 1.02 * Math.pow(l, 0.85) - 0.3 * sp, 0, 1);                                // bintang bercahaya: bayangan tidak gelap, hanya turun ke biru muda #8fcbff
-      let ci = 3 + PX.tone(k, tx, ty, 3, 0.7);                                                             // 3 warna: #8fcbff (bayangan) -> #dff2ff -> putih; dither di koordinat TEKSTUR -> pola ikut berputar
-      if (r2 < 0.72 && l > 0.35) { if (pn < 0.06) ci = Math.max(3, ci - 1); else if (pn > 0.97) ci = 5; }  // butiran halus hanya di sisi terang
-      if (r2 > 0.6 && fl > 0.9) ci = Math.max(ci, fl > 0.96 ? 4 : 3);                                      // bintik terang di pinggiran (tidak pernah menggelapkan)
+      const sp = Math.min(1, TEX[ty * TW + tx] + CON[ty * TW + tx]), pn = PX.hash(tx, ty, 123);   // fl: bintik tetap di tekstur; sp: bercak; pn: butiran halus -> semuanya ikut berputar
+      const cap = PX.clamp((Math.abs(ay) - 0.84) / 0.12, 0, 1);                                            // tutup putih di kutub sumbu putar (seperti bola PSR di game)
+      let k = (0.42 + 0.58 * nz) * (1 - 0.45 * sp * sp * sp) + 0.8 * cap * cap * (3 - 2 * cap);                      // terang = menghadap kamera (emisif), bercak menggelapkan; tanpa arah cahaya
+      if (r2 > 0.9) k = Math.min(k, 0.22);                                                                // cincin tepi gelap tipis -> siluet terbaca
+      let ci = PX.clamp(Math.floor(k * 5 + PX.bayer(tx, ty) - 0.5), 0, 5);                                // 6 warna, dither di koordinat TEKSTUR -> ikut berputar
+      if (r2 < 0.72 && nz > 0.5) { if (pn < 0.06) ci = Math.max(0, ci - 1); else if (pn > 0.97) ci = Math.min(5, ci + 1); }   // butiran halus
       put(X, Y, ci);
     }
     for (const f of front) put(f[0], f[1], f[2]);                                    // garis medan sisi depan menimpa bola
