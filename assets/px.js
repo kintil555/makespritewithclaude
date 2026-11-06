@@ -1181,8 +1181,8 @@ PX.demos.pulsar = (host) => {
   const NORM = Math.tanh(SNAP), sparks = [], rings = [], NSUB = 5, TAU = 0.5, CT = Math.cos(TAU), ST = Math.sin(TAU); let prevCos = 1, thPrev = null;   // NSUB: sub-langkah interpolasi sudut per frame; TAU: sumbu miring ke arah kamera (untuk medan 3D)
   const SPIN = 10, AXT = 0.35, TW = 96, TH = 48, TEX = new Float32Array(TW * TH), CA_ = Math.cos(AXT), SA_ = Math.sin(AXT);   // SPIN: rad/s putaran bola (≈1.6 putaran/detik), AXT: kemiringan sumbu putar
   for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {                       // bake SEKALI: peta lon/lat (tile di lon). fbm besar + kontras -> bercak gelap & titik panas yang jelas saat berputar
-    const f = PX.fbm(x / 12, y / 12, 21, TW / 12, 0, 4), hot = PX.fbm(x / 8, y / 8, 47, TW / 8, 0, 3);   // oktaf lebih banyak -> bercak lebih beragam
-    TEX[y * TW + x] = PX.clamp((f - 0.5) * 2.6 + 0.5 - Math.max(0, hot - 0.62) * 1.6 + Math.max(0, 0.3 - hot) * 1.4, 0, 1);
+    const f = PX.fbm(x / 12, y / 12, 21, TW / 12, 0, 4);
+    TEX[y * TW + x] = PX.clamp((f - 0.6) * 6, 0, 1);                                // bercak: hanya puncak fbm (≈15% area) -> bola bersih, bercak sedikit
   }
   const motes = Array.from({ length: 16 }, () => ({ d: Math.random() * HR, a: Math.random() * 6.283, sp: 1 + Math.random() * 1.5, w: (Math.random() - 0.5) * 0.25 }));
   const put = (x, y, ci) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; const i = (y * W + x) * 4, k = V[ci]; img.data[i] = k[0]; img.data[i + 1] = k[1]; img.data[i + 2] = k[2]; img.data[i + 3] = 255; };
@@ -1242,12 +1242,14 @@ PX.demos.pulsar = (host) => {
     });
     for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) {                    // bola
       const nx = x / R, ny = y / R, r2 = nx * nx + ny * ny; if (r2 > 1) continue;
-      const nz = Math.sqrt(1 - r2), l = Math.max(0, nx * -0.45 + ny * -0.5 + nz * 0.75), X = x + CX | 0, Y = y + CY | 0;
+      const nz = Math.sqrt(1 - r2), X = x + CX | 0, Y = y + CY | 0;
       const ax = nx * CA_ + ny * SA_, ay = -nx * SA_ + ny * CA_, lon = Math.atan2(ax, nz) + t * SPIN, lat = Math.asin(PX.clamp(ay, -1, 1));   // pemetaan terbalik: piksel -> titik bola (sumbu miring) -> lon/lat
       const tu = (((lon / 6.2832) % 1) + 1) % 1, tx = (tu * TW) | 0, ty = PX.clamp(((lat / Math.PI + 0.5) * TH) | 0, 0, TH - 1);
       const rim = PX.clamp((r2 - 0.45) / 0.55, 0, 1), fl = PX.hash(tx >> 1, ty >> 1, 91);                    // rim: 0 di tengah -> 1 di tepi; fl: bintik tetap di tekstur, jadi ikut berputar
-      const k = PX.clamp((0.06 + 0.42 * l + (TEX[ty * TW + tx] - 0.5) * 0.85) * (1 - 0.85 * rim * rim), 0, 1);   // cahaya tetap, tekstur berputar (kontras tinggi), makin gelap ke tepi; puncak tidak putih penuh
-      let ci = PX.tone(k, X, Y, 5, 0.9);                                                                    // dither Bayer lebar (5 warna, tanpa putih) -> terlihat pola dither di seluruh bola
+      const sp = TEX[ty * TW + tx], pn = PX.hash(tx, ty, 123);                                              // sp: bercak sedikit (di tekstur); pn: butiran partikel halus per texel -> keduanya ikut berputar
+      const k = PX.clamp((0.4 + 0.26 * nz - 0.4 * sp) * (1 - 0.85 * rim * rim), 0, 1);                      // bola BERCAHAYA: tanpa arah cahaya; terang di tengah, makin gelap ke tepi
+      let ci = PX.tone(k, tx, ty, 5, 0.9);                                                                  // dither di koordinat TEKSTUR (bukan layar) -> pola dither ikut berputar
+      if (r2 < 0.72) { if (pn > 0.93) ci = Math.min(4, ci + 2); else if (pn < 0.04) ci = Math.max(0, ci - 2); }   // butiran partikel terang/gelap di dalam cahaya bola, berputar bersama bola
       if (r2 > 0.6 && fl > 0.9) ci = fl > 0.96 ? 5 : 4;                                                   // sedikit putih di pinggiran (berputar bersama bola)
       else if (r2 > 0.8) ci = Math.min(ci, fl > 0.5 ? 1 : 0);                                              // pinggiran luar: biru gelap
       put(X, Y, ci);
