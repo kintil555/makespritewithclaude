@@ -42,7 +42,7 @@ Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersi
 1. Tentukan spesifikasi (template di atas).
 2. Buat **rig** halus (tulang/IK atau persamaan bentuk) — [stickman IK](https://makespritewithclaude.pages.dev/md/hires-to-pixel.md) atau [karakter dari persamaan](https://makespritewithclaude.pages.dev/md/procedural-character.md).
 3. Turunkan ke piksel dengan `PX.pixelize` / pemetaan per-piksel.
-4. Tambah efek dari katalog: [tracer](https://makespritewithclaude.pages.dev/md/tracer-muzzle.md), [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md), [lubang](https://makespritewithclaude.pages.dev/md/crater-hole.md), [api](https://makespritewithclaude.pages.dev/md/fire.md), [neutron/pulsar](https://makespritewithclaude.pages.dev/md/neutron-psr.md).
+4. Tambah efek dari katalog: [tracer](https://makespritewithclaude.pages.dev/md/tracer-muzzle.md), [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md), [lubang](https://makespritewithclaude.pages.dev/md/crater-hole.md), [api](https://makespritewithclaude.pages.dev/md/fire.md), [neutron/pulsar](https://makespritewithclaude.pages.dev/md/neutron-psr.md), [black hole](https://makespritewithclaude.pages.dev/md/black-hole.md). Efek baru? Ikuti [resep VFX](https://makespritewithclaude.pages.dev/md/vfx-recipe.md). Material/ubin? Ikuti [texturing](https://makespritewithclaude.pages.dev/md/pixel-texturing.md).
 5. Bake atlas ([sprite sheet](https://makespritewithclaude.pages.dev/md/sprite-sheet.md)) dan uji di latar gelap.
 6. Periksa checklist.
 
@@ -646,6 +646,205 @@ PX.drawSprite = (buf, s, x, y, o = {}) => {
 
 ---
 
+# Texturing pixel art prosedural — ramp, klaster, tile, dan bake efisien
+
+> Cara membuat tekstur (batu, rumput, kayu, bata, lava) yang tetap terasa piksel — ramp bergeser hue, noise yang bisa di-tile, dither hanya di batas klaster, lighting dari height-map — lalu di-bake sekali ke indeks palet agar murah.
+
+Kategori: Teknik Rendering · URL: https://makespritewithclaude.pages.dev/articles/pixel-texturing.html
+
+## Prinsip: tekstur piksel = keputusan, bukan gradient
+Tekstur piksel yang bagus punya tiga lapis yang dibaca mata berurutan: **(1) bentuk besar** (blok warna, retakan, alur), **(2) klaster** (kumpulan piksel sewarna, bukan piksel tunggal acak), **(3) detail kecil** (1–2 piksel highlight/bintik). Noise halus yang langsung dipetakan ke warna menghasilkan lapis (3) saja — hasilnya tampak kotor dan seperti hasil *resize*. Karena itu seluruh pipeline di bawah selalu: **nilai halus → kuantisasi ke ramp kecil → dither hanya di batas**.
+
+Ringkas untuk AI: jangan menaruh warna per piksel dengan `random()`. Hitung satu **nilai `k` 0..1** per texel dari persamaan, beri **cahaya**, lalu ubah ke **indeks ramp** dengan `PX.tone`.
+
+## Pipeline 5 langkah
+1. **Material = ramp + fungsi nilai.** Ramp 5–6 warna (gelap → terang). Fungsi `f(x, y, S)` mengembalikan `k` (mis. batu = noise sel + fbm, retakan menurunkan `k`).
+2. **Height-field.** Isi array `F[S×S]` dengan `f`. Nilai ini sekaligus dianggap *tinggi permukaan*.
+3. **Lighting dari height (emboss).** `lit = (F[kiri-atas] − F[kanan-bawah]) · emb`. Tepi yang menghadap kiri-atas jadi terang, kanan-bawah gelap — cahaya satu arah yang konsisten dengan seluruh sprite. Tetangga di-*wrap* (`(i+S)%S`) agar tile tetap mulus.
+4. **Tone.** `idx = PX.tone(F·0.75 + 0.12 + lit, x, y, jumlahRamp, w)` (lihat bagian dither).
+5. **Bake.** Simpan `Uint8Array` indeks + palet. Seterusnya yang dipakai tiap frame hanya hasil bake.
+
+> **Demo interaktif "texture"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
+
+Ganti material, mode dither, dan ukuran tile. Tampilan 3×3 membuktikan tile mulus. Mode "tanpa dither" memperlihatkan banding; "dither penuh" memperlihatkan kenapa noise di mana-mana terlihat kotor.
+
+## Ramp bergeser hue
+Aturan yang dipakai pixel artist dan pack tekstur retro: mulai dari **midtone**, tambah **satu bayangan dan satu highlight**, baru tambah tingkat lain; jarak kecerahan antar tingkat **seimbang**; dan geser hue — bayangan sedikit lebih dingin (ungu/biru), highlight lebih hangat (kuning/putih). Tanpa pergeseran, ramp terlihat seperti sekadar pengaturan kecerahan dan pucat.
+
+| Material | Ramp (gelap → terang) | Catatan |
+|---|---|---|
+| Batu | `#2b2a3a #4a4a5e #6e6f80 #9a9aa6 #cfcdd2` | bayangan keunguan |
+| Rumput | `#1f3a2e #2f6b3a #4f9a3f #86c24a #c9e56e` | bayangan kebiruan, highlight kekuningan |
+| Kayu | `#2a1a22 #5a3326 #8a5530 #b57d44 #dba868` | bayangan ke arah ungu-cokelat |
+| Bata | `#2d1b25 #5c2b2e #8c4636 #b86a48 #e0a070` | |
+| Lava | `#1a0e1e #4a1424 #a82a1a #f06a1e #ffd24a #fff4c8` | 6 warna, ujung terang = emisi |
+
+Jangan pakai hitam murni (`#000`) atau putih murni sebagai warna material; sisakan untuk outline atau kilat.
+
+## Noise yang cocok untuk piksel
+Semua fungsi ada di `15-texture.js`, deterministik per `seed`, dan **bisa di-tile**.
+
+- `PX.vnoise(x, y, seed, px, py)` — value noise halus. `x,y` dalam satuan sel lattice. Argumen `px/py` adalah **periode dalam sel**; dengan periode, noise berulang tepat tiap periode sehingga tile mulus.
+- `PX.fbm(...)` — jumlah oktaf (frekuensi ×2, amplitudo ×0.5). Periode ikut dikali 2 tiap oktaf.
+- `PX.worley(...)` → `[jarakTerdekat, jarak2 − jarak1]`. Elemen kedua ≈ 0 di batas sel: pakai untuk **retakan batu, mortar, pecahan lava**.
+- `PX.hash(x, y, seed)` — noise blok tanpa interpolasi: untuk bintik acak 1 piksel (bunga/helai rumput), bukan untuk bentuk besar.
+
+**Aturan tile mulus:** ukuran tile `S` kelipatan 4 (16/32/64) agar Bayer 4×4 ikut mulus; ukuran sel noise harus **pembagi `S`** (`S/8`, `S/4`) sehingga periode = bilangan bulat; tetangga lighting di-wrap. Cek tile dalam tampilan 3×3 **sebelum** menambah shading — kesalahan tile lebih mudah terlihat di tahap awal.
+
+**Anisotropi**: rumput = fbm direntang vertikal (`x/2, y/8`), kayu = `sin` pada `y + warp` dengan `warp` dari fbm. Cukup skala sumbu berbeda; bukan rotasi.
+
+## Klaster vs dither
+`PX.tone(k, x, y, n, w)` memetakan `k` ke indeks ramp. Parameter `w` adalah lebar pita dither di sekitar batas dua tingkat:
+
+| `w` | Hasil | Pakai untuk |
+|---|---|---|
+| `0` | klaster keras, ada banding | permukaan datar bergaya NES/GB, UI |
+| `0.25` (default) | klaster solid, dither **hanya di batas** | hampir semua tekstur |
+| `1` | dither di seluruh area | transisi besar (langit, kabut), bukan material |
+
+Dither yang menyebar ke seluruh permukaan membuat tekstur berisik dan menghilangkan "bentuk". Dither di batas membuat transisi terlihat sengaja. Pola Bayer memakai koordinat texel lokal, jadi tetap stabil dan ikut tile.
+
+## Resep material
+| Material | Inti persamaan |
+|---|---|
+| Batu | `worley(x/8,y/8)`: `edge < 0.09` → `k ×= 0.3` (retak); `k = 0.25 + 0.55·fbm + 0.2·d1` |
+| Rumput | `0.2 + 0.55·fbm(x/2, y/8)` + 10% piksel `hash > 0.9` dinaikkan `+0.25` |
+| Kayu | `0.5 + 0.35·sin((y+warp)·2π·4/S) + 0.15·(hash−0.5)` |
+| Bata | tinggi bata `S/4`, lebar `S/2`, baris ganjil digeser setengah; garis mortar `k = 0.1`; tiap bata `0.45 + 0.3·hash(id) + 0.25·fbm` |
+| Lava | `glow = 1 − edge/0.35` kuadrat; `k = 0.12 + 0.2·fbm + 0.75·glow²` — retakan menjadi sumber cahaya |
+
+## Teknik efisien
+- **Bake sekali.** Hitung noise hanya saat memuat atau ganti seed. Tiap frame cukup `drawImage(tile)`. Noise fbm per piksel per frame adalah kesalahan performa paling umum.
+- **Indeks, bukan RGB.** Simpan texel sebagai 1 byte (`Uint8Array`) + palet. Memori 4× lebih kecil, dan *recolor* = mengganti palet (biome, siang/malam, kena-hit) tanpa menghitung ulang tekstur.
+- **Animasi dengan memutar palet** (*palette cycling*): untuk lava/air, geser indeks pada daerah bertanda: `color = pal[(idx + floor(t·8)) % n]` hanya untuk texel bermask. Nol hitungan noise.
+- **Tile kecil + variasi.** Bake 3–4 varian tile 16×16 atau 32×32 (seed berbeda), pilih per sel dengan `hash(cx, cy) → varian`. Ini menghilangkan pola berulang tanpa atlas besar.
+- **Layar penuh**: `ctx.createPattern(tileCanvas, 'repeat')` dengan `imageSmoothingEnabled = false`, atau `drawImage` per sel dengan posisi integer.
+- **Ekspor**: PNG-8 (indexed) dan skala tampilan bilangan bulat — lihat [sprite sheet](https://makespritewithclaude.pages.dev/md/sprite-sheet.md). Anti-halo & `image-rendering: pixelated` ada di sana.
+- **Detail di atas tile**, bukan di dalamnya: retak besar, lumut, noda dibuat sebagai *decal* sprite kecil ([komposit](https://makespritewithclaude.pages.dev/md/sprite-composite.md)) agar tile tetap bisa diulang.
+
+```js
+// pakai: bake sekali -> gambar berulang
+const tile = PX.texCanvas(PX.bakeTex('brick', 32, { seed: 4, dither: 'cluster', emb: 0.5 }));
+for (let y = 0; y < H; y += 32) for (let x = 0; x < W; x += 32) ctx.drawImage(tile, x, y);
+
+// palette cycling untuk lava (mask = texel yang boleh beranimasi)
+const colorOf = (i, mask, t, pal) => pal[mask ? (i + Math.floor(t * 6)) % pal.length : i];
+```
+
+## Checklist untuk AI
+1. Ramp 4–6 warna per material, bergeser hue, tanpa hitam murni.
+2. Satu arah cahaya (kiri-atas) untuk seluruh adegan.
+3. Nilai `k` dari persamaan, bukan `Math.random()` per piksel.
+4. Sel noise membagi `S`; `S` ∈ {16, 32, 64}; tile diuji dalam grid 3×3.
+5. `w = 0.25` kecuali ada alasan; tidak ada piksel yatim (1 piksel warna beda di tengah klaster) kecuali sebagai bintik yang disengaja.
+6. Bake sekali, simpan indeks, ubah ke canvas, gambar dengan skala bilangan bulat.
+7. Periksa dengan **melihat** hasil yang diperbesar nearest-neighbor, bukan menebak.
+
+Referensi yang dipakai untuk aturan di atas: [Minecraft Style Guide (Blockbench)](https://blockbench.net/wiki/guides/minecraft-style-guide) — ramp dari midtone, hue shifting, dithering, uji tile 3×3; [Phaser retro textures](https://phaser.io/packs/retro-textures/api) — ramp 8 tingkat bergeser hue, height-map dan glow-mask per texel; [Phaser procgen](https://phaser.io/packs/procgen/api) — noise Perlin/value/Worley dengan parameter `period` agar tile.
+
+## Kode
+
+**Kode: `src/code/15-texture.js`**
+
+```js
+// 15-texture.js — texturing prosedural bergaya piksel: noise yang bisa di-tile, ramp bergeser hue, dither hanya di batas klaster, lighting dari height-map. Dibake SEKALI ke indeks palet.
+PX.vnoise = (x, y, seed = 0, px = 0, py = px) => {      // value noise halus 0..1; x,y dalam satuan sel lattice; px/py = periode (sel) agar tile mulus
+  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const wx = (i) => (px ? ((i % px) + px) % px : i), wy = (j) => (py ? ((j % py) + py) % py : j);
+  const a = PX.hash(wx(x0), wy(y0), seed), b = PX.hash(wx(x0 + 1), wy(y0), seed), c = PX.hash(wx(x0), wy(y0 + 1), seed), d = PX.hash(wx(x0 + 1), wy(y0 + 1), seed);
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+};
+PX.fbm = (x, y, seed = 0, px = 0, py = px, oct = 3) => {   // tumpuk oktaf: frekuensi x2, amplitudo x0.5 (periode ikut x2 -> tetap tile)
+  let s = 0, n = 0, a = 0.5;
+  for (let o = 0; o < oct; o++, a *= 0.5, x *= 2, y *= 2, px *= 2, py *= 2) { s += a * PX.vnoise(x, y, seed + o * 17, px, py); n += a; }
+  return s / n;
+};
+PX.worley = (x, y, seed = 0, px = 0, py = px) => {      // noise sel: [jarak titik terdekat, jarak2 - jarak1]; elemen ke-2 ≈ 0 di batas sel (retakan/mortar)
+  const x0 = Math.floor(x), y0 = Math.floor(y); let d1 = 9, d2 = 9;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    const cx = x0 + i, cy = y0 + j, wx = px ? ((cx % px) + px) % px : cx, wy = py ? ((cy % py) + py) % py : cy;
+    const d = Math.hypot(cx + PX.hash(wx, wy, seed) - x, cy + PX.hash(wx, wy, seed + 1) - y);
+    if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+  }
+  return [d1, d2 - d1];
+};
+
+// Pilih indeks ramp dari nilai k (0..1). w = lebar pita dither: 0 = klaster keras tanpa dither, 0.25 = dither hanya di batas klaster, 1 = dither penuh.
+PX.tone = (k, x, y, n, w = 0.25) => {
+  const v = PX.clamp(k, 0, 0.9999) * (n - 1), i = Math.floor(v), f = v - i;
+  if (w <= 0) return f >= 0.5 ? i + 1 : i;
+  const t = PX.clamp((f - 0.5) / w + 0.5, 0, 1);
+  return i + (t > PX.bayer(x, y) ? 1 : 0);
+};
+
+// Material = ramp (gelap -> terang, hue bergeser) + fungsi nilai f(x,y,S,seed) -> 0..1. Semua noise memakai periode bulat agar tile mulus.
+PX.MAT = {
+  stone: { ramp: ['#2b2a3a', '#4a4a5e', '#6e6f80', '#9a9aa6', '#cfcdd2'], f: (x, y, S, s) => {
+    const w = PX.worley(x / 8, y / 8, s, S / 8), crack = w[1] < 0.09 ? 0.3 : 1;
+    return (0.25 + 0.55 * PX.fbm(x / 4, y / 4, s + 5, S / 4) + 0.2 * w[0]) * crack;
+  } },
+  grass: { ramp: ['#1f3a2e', '#2f6b3a', '#4f9a3f', '#86c24a', '#c9e56e'], f: (x, y, S, s) =>
+    0.2 + 0.55 * PX.fbm(x / 2, y / 8, s, S / 2, S / 8) + (PX.hash(x, y, s + 3) > 0.9 ? 0.25 : 0) },
+  wood: { ramp: ['#2a1a22', '#5a3326', '#8a5530', '#b57d44', '#dba868'], f: (x, y, S, s) => {
+    const warp = PX.fbm(x / 8, y / 4, s, S / 8, S / 4) * 5, g = Math.sin(((y + warp) * Math.PI * 2 * 4) / S);
+    return 0.5 + 0.35 * g + 0.15 * (PX.hash(x, y, s + 9) - 0.5);
+  } },
+  brick: { ramp: ['#2d1b25', '#5c2b2e', '#8c4636', '#b86a48', '#e0a070'], f: (x, y, S, s) => {
+    const bh = S / 4, bw = S / 2, row = Math.floor(y / bh), xx = (x + (row & 1) * (bw / 2)) % S;
+    if (y % bh === 0 || xx % bw === 0) return 0.1;
+    return 0.45 + 0.3 * PX.hash(Math.floor(xx / bw), row, s) + 0.25 * PX.fbm(x / 4, y / 4, s + 2, S / 4);
+  } },
+  lava: { ramp: ['#1a0e1e', '#4a1424', '#a82a1a', '#f06a1e', '#ffd24a', '#fff4c8'], f: (x, y, S, s) => {
+    const w = PX.worley(x / 8, y / 8, s, S / 8), glow = Math.max(0, 1 - w[1] / 0.35);
+    return 0.12 + 0.2 * PX.fbm(x / 4, y / 4, s, S / 4) + 0.75 * glow * glow;
+  } },
+};
+
+// Bake: height-field -> lighting emboss (kiri-atas) -> indeks palet Uint8. Dijalankan sekali; hasilnya yang dipakai tiap frame.
+PX.bakeTex = (mat, S = 32, o = {}) => {
+  const m = PX.MAT[mat], n = m.ramp.length, seed = o.seed ?? 1, emb = o.emb ?? 0.5, w = o.dither === 'none' ? 0 : o.dither === 'full' ? 1 : 0.25;
+  const F = new Float32Array(S * S), idx = new Uint8Array(S * S), W = (i) => (i + S) % S;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) F[y * S + x] = PX.clamp(m.f(x, y, S, seed), 0, 1);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const h = F[y * S + x], lit = (F[W(y - 1) * S + W(x - 1)] - F[W(y + 1) * S + W(x + 1)]) * emb;   // beda tetangga kiri-atas vs kanan-bawah
+    idx[y * S + x] = PX.tone(h * 0.75 + 0.12 + lit, x, y, n, w);                                   // Bayer memakai koordinat lokal (S kelipatan 4 -> tetap tile)
+  }
+  return { S, idx, pal: m.ramp.map(PX.hex) };
+};
+PX.texCanvas = (t) => {                                  // indeks -> canvas kecil (1 piksel = 1 texel); gambar membesar dengan image-rendering: pixelated
+  const cv = document.createElement('canvas'); cv.width = cv.height = t.S;
+  const img = new ImageData(t.S, t.S);
+  for (let i = 0; i < t.idx.length; i++) { const c = t.pal[t.idx[i]]; img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1]; img.data[i * 4 + 2] = c[2]; img.data[i * 4 + 3] = 255; }
+  cv.getContext('2d').putImageData(img, 0, 0);
+  return cv;
+};
+```
+
+
+
+**Kode: `src/code/49-demo-texture.js`**
+
+```js
+// Demo texturing: bake 1 tile ke indeks palet, tampilkan 3x3 untuk mengecek tile. Ganti material, mode dither, ukuran tile, kekuatan emboss.
+PX.demos.texture = (host) => {
+  let mat = 'stone', dither = 'cluster', S = 32, emb = 0.5, seed = 1, tile;
+  const cv = PX.canvas(host, 96, 96, 480, false, '3×3 tile — garis sambungan tidak boleh terlihat'), c = cv.getContext('2d'), ui = PX.ui(host);
+  const bake = () => { tile = PX.texCanvas(PX.bakeTex(mat, S, { dither, emb, seed })); draw(); };
+  const draw = () => { c.clearRect(0, 0, 96, 96); c.imageSmoothingEnabled = false; for (let j = 0; j < 96 / S; j++) for (let i = 0; i < 96 / S; i++) c.drawImage(tile, i * S, j * S); };
+  ui.select('Material', ['stone', 'grass', 'wood', 'brick', 'lava'], mat, (v) => { mat = v; bake(); });
+  ui.select('Dither', [{ label: 'klaster + dither di batas', value: 'cluster' }, { label: 'dither penuh (noisy)', value: 'full' }, { label: 'tanpa dither (banding)', value: 'none' }], dither, (v) => { dither = v; bake(); });
+  ui.select('Tile', ['16', '32'], String(S), (v) => { S = +v; bake(); });
+  ui.range('Emboss', 0, 1.2, 0.1, emb, (v) => { emb = v; bake(); });
+  ui.button('Seed baru', () => { seed = (seed * 7 + 3) % 97; bake(); });
+  bake();
+};
+```
+
+
+
+---
+
 # Parallax berlapis — kedalaman dari faktor kecepatan
 
 > Latar 3–5 lapisan siluet yang di-tile mulus, digeser dengan faktor kecepatan berbeda, di-snap ke piksel integer, dengan kabut yang dibakar ke palet lapisan, bukan alpha per frame.
@@ -720,6 +919,100 @@ PX.parallaxLayer = (w, h, { speed, seed, col, edge, amp = 0.5, base = 0.45, tree
 };
 ```
 
+
+
+---
+
+# Resep VFX prosedural — dari ide ke efek piksel (pulsar, black hole, ledakan)
+
+> Kerangka satu pola untuk membuat efek apa pun — fase waktu, bentuk dari persamaan per piksel, intensitas → ramp + Bayer, partikel berekor, glow additive, layer belakang/depan, game feel — beserta peta efek ke artikel contoh.
+
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/vfx-recipe.html
+
+## Satu pola untuk semua efek
+Pulsar, black hole, ledakan, api, hujan: semuanya tersusun dari bahan yang sama. Jika AI hafal pola ini, efek baru tinggal memilih bahan dan persamaan.
+
+1. **Fase waktu.** Pecah efek jadi fase: *lahir* (0.2–0.5 dtk, ukuran overshoot), *hidup* (loop, bereaksi pada input), *akhir* (runtuh/memudar). Simpan satu `t` dan turunkan semua nilai dari fungsi `t`, bukan banyak timer terpisah.
+2. **Bentuk dari persamaan, per piksel.** Untuk tiap piksel dalam kotak pembatas, hitung koordinat lokal lalu intensitas `I` 0..1.
+3. **Intensitas → warna.** `I` dipetakan ke **ramp** 6–9 warna dengan **Bayer** (`idx = floor(I·(n−1) + bayer)`), bukan gradient. Lihat [palet & dither](https://makespritewithclaude.pages.dev/md/dither-palette.md).
+4. **Partikel** untuk hal yang bergerak bebas: garis pendek berekor searah kecepatan (bukan lingkaran blur).
+5. **Cahaya** di buffer terpisah, additive: [glow](https://makespritewithclaude.pages.dev/md/glow.md).
+6. **Layer** *belakang* dan *depan* agar efek bisa menyelimuti karakter/objek.
+7. **Game feel**: guncangan layar, kilat layar, riak/lensa — kecil tapi menentukan.
+
+## Bentuk dasar (persamaan per piksel)
+`dx, dy` = piksel dikurangi pusat (tambah 0.5 untuk pusat piksel). `u, v` = `dx, dy` diputar sebesar sudut sumbu.
+
+| Bentuk | Persamaan |
+|---|---|
+| Disc | `dx²+dy² ≤ r²` |
+| Cincin | `abs(hypot(dx,dy) − r) ≤ tebal/2` |
+| Sinar / kerucut | `I = (1 − u/L)·(1 − abs(v)/w)^0.8`, lebar `w = w0 + k·u` |
+| Elips (cakram miring) | `ρ = hypot(u, v/q)`, `q` = rasio miring (0.2 ≈ hampir tepi) |
+| Spiral berputar | `sudut = θ + c·ρ^−1.5·t` (dalam lebih cepat, hukum Kepler) |
+| Garis medan dipol | `r = s·cos²λ`; titik `(r·sinλ, ±r·cosλ)` |
+| Gelombang kejut | cincin `r0 → r1` dengan `e = 1 − (1−k)³`, tebal mengecil |
+| Halo cahaya | `(1 − d/r)²` di buffer additive |
+
+## Fungsi waktu dan easing yang dipakai berulang
+```js
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };   // 0->1 halus
+const easeOut = (k) => 1 - (1 - k) ** 3;                                       // cepat lalu melambat: ledakan, gelombang
+const pulse = (p, c, w) => Math.exp(-(((p - c) / w) ** 2));                    // satu denyut (lonceng) di posisi c
+const heartbeat = (t, T = 0.85) => { const p = (t % T) / T; return pulse(p, 0.06, 0.045) + 0.7 * pulse(p, 0.26, 0.045); };
+const overshoot = (k) => 1 + 1.7 * (k - 1) ** 3 + 0.7 * (k - 1) ** 2;           // lahir membesar lalu mengendap (k 0..1)
+```
+
+## Kerangka kode efek
+```js
+function makeFX({ x, y, life = 2, seed = 1 }) {
+  const R = PX.rng(seed), parts = [], rings = [];
+  let t = 0;
+  return {
+    update(dt) {
+      t += dt;
+      // 1) spawn partikel/cincin sesuai fase  2) gerakkan  3) buang yang mati (iterasi mundur + splice)
+    },
+    draw(buf, lit, layer) {            // layer: 'back' | 'front'
+      // per piksel dalam kotak pembatas: hitung I -> ramp+Bayer -> buf.px ; cahaya -> lit.glow
+    },
+    done: () => t > life && parts.length === 0,   // pemanggil membuang efek setelah done
+  };
+}
+```
+Urutan gambar per frame: partikel belakang → objek/sprite → bentuk utama → partikel depan → cincin → `lit.flush()` (cahaya paling akhir).
+
+## Partikel berekor (bukan lingkaran)
+Hitung kecepatan `sp`, arah `(ux, uy) = v/sp`, panjang `L = min(maks, 1 + sp·k)`. Gambar dua segmen: ekor lebih gelap (`warna × 0.55`) lalu kepala terang. Di akhir umur (`life/max < 0.35`) hilangkan piksel dengan Bayer: `if (bayer(x,y) > k/0.35) skip` — memudar tanpa alpha.
+
+## Reaktif: efek yang "makan" input
+Efek hidup terasa nyata bila bereaksi. Pola `feed(jumlah)`: tiap benda yang diserap menambah `flare` (kecerahan sementara), `gulp` (radius berdenyut), `grow` (ukuran permanen kecil); semuanya meluruh eksponensial: `flare -= flare·3·dt`. Satu fungsi `feed` dipanggil dari partikel yang termakan, dari serpihan tanah, dan dari tembakan pemain — seluruh reaksi visual tinggal di satu tempat. Contoh lengkap di [black hole](https://makespritewithclaude.pages.dev/md/black-hole.md).
+
+## Game feel
+- **Guncangan**: `trauma` 0..1 yang ditambah saat event dan meluruh; offset = `trauma²·amplitudo·noise`. Efek kecil → `0.006–0.1`, ledakan besar → `0.35–0.6`.
+- **Kilat layar**: overlay warna alpha 0.7 meluruh 0.1–0.2 dtk saat momen puncak.
+- **Riak/lensa**: distorsi lokal (lihat lensa di [black hole](https://makespritewithclaude.pages.dev/md/black-hole.md)).
+- Puncak efek selalu didahului **antisipasi** singkat (partikel tersedot, cincin menyempit) lalu **dampak**.
+
+## Performa
+- Loop piksel hanya di **kotak pembatas** efek (`radius·rout`), bukan seluruh layar.
+- Buffer `Uint32` + satu `putImageData` ([buffer piksel](https://makespritewithclaude.pages.dev/md/pixel-buffer.md)); jangan `fillRect` per piksel pada efek besar.
+- Batasi partikel (mis. ≤ 300), hapus dengan iterasi mundur.
+- `PX.loop` menghentikan animasi saat di luar layar; RNG ber-seed membuat efek bisa direproduksi.
+
+## Peta efek → bahan
+| Efek | Bentuk | Partikel | Cahaya | Artikel |
+|---|---|---|---|---|
+| Pulsar | bola ber-noise + 2 sinar + garis dipol | — | opsional | [neutron & pulsar](https://makespritewithclaude.pages.dev/md/neutron-psr.md) |
+| Black hole | elips cakram + halo + lensa | serpihan jatuh berputar | glow oranye | [black hole](https://makespritewithclaude.pages.dev/md/black-hole.md) |
+| Ledakan | cincin + puff disc | percikan | kilat + glow | [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md) |
+| Api | disc membesar saat menua | asap | additive | [api](https://makespritewithclaude.pages.dev/md/fire.md) |
+| Hujan | garis jatuh 3 lapis | percikan | — | [hujan](https://makespritewithclaude.pages.dev/md/rain.md) |
+| Tekstur material | height + ramp | — | — | [texturing](https://makespritewithclaude.pages.dev/md/pixel-texturing.md) |
+
+## Prosedur untuk AI saat diminta efek baru
+1. Tuliskan 3–5 fase dan durasinya. 2. Pilih 1–2 bentuk dari tabel. 3. Pilih ramp (hue bergeser) dan warna aksen. 4. Tulis `update` (partikel, fase) lalu `draw` (bentuk, partikel, cahaya). 5. Tambah `feed`/reaksi jika efek berinteraksi. 6. Tambah satu guncangan dan satu kilat di puncak. 7. Render beberapa frame ke PNG dan **lihat** hasilnya diperbesar, sebelum menyetel angka.
 
 
 ---
@@ -1553,6 +1846,199 @@ PX.demos.pulsar = (host) => {
       put(X, Y, Math.min(5, Math.floor(k + PX.bayer(X, Y))));
     }
     c.putImageData(img, 0, 0);
+  });
+};
+```
+
+
+
+---
+
+# Black hole prosedural — lensa gravitasi, cakram akresi, dan serpihan jatuh
+
+> Cara menggambar black hole piksel — lensa per piksel yang membelokkan latar, cakram elips berdoppler, halo di atas bayangan, tekstur spiral Kepler, partikel tersedot berputar, serta timeline lahir–hidup–runtuh.
+
+Kategori: Efek (VFX) · URL: https://makespritewithclaude.pages.dev/articles/black-hole.html
+
+Teknik dianalisis dari `black-hole.ts` buatan Sprite Fusion (lisensi MIT). Kode demo di bawah ditulis ulang lebih sederhana: lensa + cakram + partikel + flare. Bagian timeline, jet, dan keruntuhan dijelaskan sebagai tambahan.
+
+> **Demo interaktif "blackhole"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
+
+Klik untuk melempar serpihan; matikan "Lensa gravitasi" untuk melihat bedanya; geser kemiringan dan twist.
+
+## Anatomi (5 komponen)
+1. **Bayangan** — lingkaran hitam radius `Rs` (horizon).
+2. **Cincin foton** — tepi tipis sangat terang tepat di luar `Rs` (`r < 1.075`).
+3. **Cakram akresi** — elips miring, dari `1.4·Rs` sampai `3.5·Rs`.
+4. **Halo** — bagian cakram sisi belakang yang "terlipat" melewati atas (dan bawah) bayangan akibat lensa.
+5. **Lensa gravitasi** — latar di sekitar dibelokkan dan sedikit diputar.
+
+Koordinat: semua dihitung dalam satuan `Rs`. Untuk piksel `(x,y)`: `dx,dy = (piksel + 0.5 − pusat)/Rs`, lalu putar sebesar `tilt` → `u, v`, `r = hypot(u,v)`.
+
+## Lensa per piksel
+Untuk piksel pada jarak `r` dari pusat (dalam piksel), ambil warna dari titik sumber yang bergeser:
+
+```
+s    = (r − rE²/r) / r                    // rE = 1.4·Rs, jari-jari Einstein
+fade = smooth(0.45·rOut, rOut, r)         // efek hilang di tepi, rOut = 6·Rs
+s    = s·(1 − fade) + fade
+rot  = −twist · min(1.6, (rE/r)^1.5) · (1 − fade)
+sumber = pusat + putar(rot) · (d · s)     // d = vektor piksel dari pusat
+```
+Di dalam `rE`, `s` negatif sehingga bayangan latar terbalik — itulah cincin Einstein. Mengambil sampel *nearest* dari buffer latar menjaga hasil tetap tajam (tanpa interpolasi). Demo menyalin latar ke buffer lalu menimpa piksel di radius `rOut` saja.
+
+Varian kanvas (jika latar adalah adegan penuh): ambil snapshot persegi `2·rOut`, bagi radius menjadi cincin-cincin (lebih rapat di dekat `rE` karena gradien tinggi), dan gambar tiap cincin dengan `clip` + `setTransform(skala 1/s, rotasi rot)`. Hasilnya sama; pakai varian per piksel bila adegan sudah berupa buffer piksel.
+
+## Cakram miring
+- Elips: `ρ = hypot(u, v/q)`, `q = 0.2` (makin kecil makin tipis). Cakram ada pada `1.4 ≤ ρ ≤ 3.5`.
+- **Depan** (`v ≥ 0`): menutupi bayangan. **Belakang** (`v < 0`): hanya tampak bila `r ≥ 1` (di luar horizon), selain itu tertutup bayangan.
+- Profil radial: `Id = 1.25·(1−k)^1.1 · (0.7 + 0.3·smooth(0,0.05,k)) · (1 − smooth(0.72,1,k)) · tex · dop`, dengan `k = (ρ−1.4)/2.1`.
+- **Halo atas**: `s = max(0, −v/r)`, lebar `h = 0.1 + 0.62·s^1.3`, `e = (r−1)/h`; jika `e < 1` → `I = (1−e^1.6)·tekstur·0.9`. Lebar terbesar tepat di atas lubang (`s = 1`), mengecil ke samping — bentuk "topi" di atas bayangan. Halo bawah lebih tipis (`0.04 + 0.2·s^1.3`, intensitas 0.5).
+- **Cincin foton**: `r < 1.075 + 0.04·flare` → `I = 1.05·kedip`.
+
+## Doppler
+Sisi cakram yang mendekat lebih terang dan kebiruan:
+
+```
+D    = 1 − 0.5·(u/r)         // u = komponen horizontal ter-rotasi
+I   *= D^1.25
+biru = max(0, D − 1.25)·1.6  // dipakai hanya pada 2 warna ramp paling terang
+```
+
+## Tekstur cakram
+Guratan spiral berputar dengan kecepatan sudut `∝ ρ^−1.5` (bagian dalam lebih cepat):
+
+```
+a      = θ + 5·ρ^−1.5·t
+streak = 0.66 + 0.2·sin(6a + 9.5ρ) + 0.14·sin(13a − 21ρ + 1.7)
+lane   = 0.78 + 0.22·cos(12.5ρ + sin(2a)·0.6)
+knot   = max(0, sin(3a + 7ρ + sin(1.3t)·2) · sin(5a − 11ρ + 0.9t))³ · 0.55
+tex    = streak·lane + knot
+```
+Intensitas akhir `I·bright` → `tone()`: ramp **9 warna** (`#3a0e16 … #ffffff`, merah gelap → oranye → putih krem) dengan Bayer; di bawah `I = 0.08` didither ke transparan sehingga tepi luar cakram larut. Satu piksel genap/ganjil (`(x+y)&1==0`) yang terang menambah glow kecil (kilau).
+
+## Serpihan yang jatuh
+Tiap partikel dalam radius `REACH = 12.4·Rs` mendapat percepatan
+
+```
+a  = G / (d² + Rs²) · min(1, (REACH − d)/(0.25·REACH))     // lunak di dekat pusat
+v += (û − û⊥·SWIRL)·a ; û = arah ke pusat, û⊥ = tegak lurusnya, SWIRL = 0.55
+v −= v·drag(d)                                              // drag naik saat mendekat
+```
+`SWIRL` membuat jalur spiral alih-alih lurus; `d < eat` → partikel dimakan dan memanggil `feed()` (menaikkan `flare`). Partikel digambar sebagai garis pendek berekor ([resep VFX](https://makespritewithclaude.pages.dev/md/vfx-recipe.md)). Pada implementasi penuh, jenis partikel berbeda bobot tarikan (`mote ×1.4`, `debu ×0.55`) dan kepingan tanah (slab persegi) ditarik, memanjang searah tarikan, lalu ditelan.
+
+## Timeline (implementasi penuh)
+| Fase | Durasi | Perilaku |
+|---|---|---|
+| Lahir `FORM` | 0.4 dtk | radius overshoot `1 + 1.7(k−1)³ + 0.7(k−1)²`; cincin ungu + partikel mengitari |
+| Hidup `LIFE` | 3.8 dtk | napas `1 + 0.025·sin(3.1t) + 0.01·sin(7.3t)`; denyut jantung 0.85 dtk (`pulse`) menambah tarikan, radius, spawn |
+| Runtuh `COLLAPSE` | 0.42 dtk | membesar 14% lalu menyusut `(1 − ((k−0.3)/0.7)²)`, tarikan ×1.8, kilat layar |
+| Ledakan akhir | ~2.5 dtk | cincin 3 lapis, 150 mote, 40 plasma, 130 serpihan berwarna benda yang pernah dimakan, `impulse` menolak partikel dan kepingan |
+
+Intensitas yang bergantung waktu: `kuat = smooth(0, 0.8·FORM, t)·(1 + 0.8·runtuh + 0.45·denyut)`; `twist` dan `gloom` (kegelapan di sekitar) naik perlahan dan melonjak saat runtuh — keduanya dimasukkan ke lensa.
+
+**Jet**: saat `feed ≥ 3` (dengan cooldown 1.1 dtk) dua semburan keluar tegak lurus cakram: partikel plasma cepat + garis berlapis tiga warna (`#7a5cff` tepi, `#9fd8ff` badan, `#f4fbff` inti) dengan goyangan `sin(0.45·s − 40·t)` yang melebar lalu menyempit.
+
+**Guncangan & efek layar**: `shake(0.006·kuat + gulp·0.01)` terus-menerus, `0.1` pada puncak denyut, `0.35` saat lahir, `0.6` saat runtuh; `flash(0.7)` + riak saat runtuh.
+
+## Urutan gambar
+`partikel belakang (debu, serpihan) → kepingan → lubang + cakram → kilatan sinar → partikel depan (mote, plasma) → cincin → buffer cahaya`. Mengekspos layer `back`/`front` memungkinkan karakter ditempatkan di antaranya.
+
+## Variasi cepat
+- **Quasar**: `tilt ≈ 0`, jet permanen, cakram lebih terang.
+- **Bintang neutron / pulsar**: tanpa bayangan; lihat [pulsar](https://makespritewithclaude.pages.dev/md/neutron-psr.md).
+- **Lubang cacing**: tanpa cakram, hanya lensa + cincin foton.
+
+## Checklist untuk AI
+1. Lensa dulu (tanpa lensa black hole hanya terlihat seperti planet bercincin).
+2. Cakram = elips `q≈0.2` + halo atas; depan menutupi bayangan.
+3. Doppler pada satu sisi, ujung terang dibiru-putihkan.
+4. Semua warna lewat ramp + Bayer; tidak ada `arc()` anti-alias.
+5. Partikel berputar masuk (SWIRL), dimakan di horizon, memicu `flare`.
+6. Loop piksel dibatasi kotak `rout·Rs`; lensa dibatasi `rOut`.
+7. Render beberapa frame ke PNG dan periksa visual sebelum menyetel.
+
+## Kode
+
+**Kode: `src/code/50-demo-blackhole.js`**
+
+```js
+// Demo black hole: lensa per-piksel (latar bintang dibelokkan), disk elips berdoppler, halo di atas bayangan, partikel jatuh berputar. Klik = lempar serpihan.
+PX.demos.blackhole = (host) => {
+  const W = 160, H = 90, cv = PX.canvas(host, W, H, 800), c = cv.getContext('2d'), buf = new PX.Buf(W, H), star = new PX.Buf(W, H), lit = new PX.Light(W, H), p = PX.pointer(cv);
+  const CX = W / 2, CY = H / 2 + 2, Rs = 9, rE = Rs * 1.4, rOut = Rs * 6, q = 0.2, rin = 1.4, rout = 3.5, REACH = Rs * 12.4, G = 5e5, SWIRL = 0.55;
+  let tilt = -0.2, twist = 0.8, lens = true, flare = 0, t = 0, acc = 0;
+  const RAMP = ['#3a0e16', '#701a17', '#ad2f17', '#e2561d', '#ff8a2a', '#ffb24a', '#ffd98c', '#fff2cf', '#ffffff'].map(PX.hex), BLUEW = PX.hex('#dcecff'), SHADOW = [2, 1, 5];
+  const SHREDS = ['#e4ddf4', '#b5abd4', '#8b80b4', '#5d5488'].map(PX.hex), parts = [], R = PX.rng(7);
+  const sm = (a, b, x) => { const k = PX.clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+  const ui = PX.ui(host);
+  ui.range('Kemiringan', -0.5, 0.5, 0.02, tilt, (v) => (tilt = v)); ui.range('Twist lensa', 0, 1.6, 0.1, twist, (v) => (twist = v)); ui.check('Lensa gravitasi', true, (v) => (lens = v));
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {                                    // latar: nebula berdither + bintang
+    const n = Math.max(0, (PX.fbm(x / W * 3, y / H * 3, 5, 0, 0, 3) - 0.45) * 1.6), h = PX.hash(x, y, 3);
+    if (h > 0.985) star.px(x, y, h > 0.995 ? [255, 255, 255] : h > 0.99 ? [180, 200, 255] : [255, 220, 180]); else if (n > PX.bayer(x, y)) star.px(x, y, [30, 14, 52]); else star.px(x, y, [8, 6, 16]);
+  }
+  const tex = (rho, th, tt) => {                                                               // tekstur disk: guratan spiral, tiap radius berputar dengan kecepatan ∝ ρ^-1.5 (Kepler)
+    const a = th + 5 * Math.pow(rho, -1.5) * tt, streak = 0.66 + 0.2 * Math.sin(a * 6 + rho * 9.5) + 0.14 * Math.sin(a * 13 - rho * 21 + 1.7), lane = 0.78 + 0.22 * Math.cos(rho * 12.5 + Math.sin(a * 2) * 0.6);
+    const knot = Math.max(0, Math.sin(a * 3 + rho * 7 + Math.sin(tt * 1.3) * 2) * Math.sin(a * 5 - rho * 11 + tt * 0.9));
+    return streak * lane + knot * knot * knot * 0.55;
+  };
+  const tone = (I, x, y, blue) => {                                                            // intensitas -> ramp 9 warna + Bayer; ujung terang dibiru-putihkan (Doppler)
+    if (I < 0.08 && PX.bayer(x, y) > I / 0.08) return null;
+    const n = RAMP.length - 1, f = PX.clamp((I / 1.12) * n, 0, n); let i = Math.floor(f); if (f - i > PX.bayer(x, y)) i = Math.min(n, i + 1);
+    return blue > 0.05 && i >= n - 2 ? PX.mix(RAMP[i], BLUEW, Math.min(1, blue)) : RAMP[i];
+  };
+  const lensPass = () => {                                                                     // buffer = star, tapi tiap piksel dekat lubang mengambil sampel dari posisi yang dibelokkan
+    buf.d.set(star.d);
+    if (!lens) return;
+    for (let y = Math.max(0, Math.floor(CY - rOut)); y < Math.min(H, Math.ceil(CY + rOut)); y++) for (let x = Math.max(0, Math.floor(CX - rOut)); x < Math.min(W, Math.ceil(CX + rOut)); x++) {
+      const dx = x + 0.5 - CX, dy = y + 0.5 - CY, r = Math.hypot(dx, dy); if (r >= rOut || r < 0.5) continue;
+      const fade = sm(rOut * 0.45, rOut, r), s = ((r - (rE * rE) / r) / r) * (1 - fade) + fade, rot = -twist * Math.min(1.6, Math.pow(rE / r, 1.5)) * (1 - fade);
+      const ux = dx * s, uy = dy * s, sx = Math.floor(CX + ux * Math.cos(rot) - uy * Math.sin(rot)), sy = Math.floor(CY + ux * Math.sin(rot) + uy * Math.cos(rot));
+      buf.d[y * W + x] = sx < 0 || sy < 0 || sx >= W || sy >= H ? 0xff000000 : star.d[sy * W + sx];
+    }
+  };
+  const hole = () => {
+    const bright = 1 + 0.45 * Math.min(2, flare), tl = tilt + Math.sin(t * 1.7) * 0.04, ct = Math.cos(tl), st = Math.sin(tl), ext = Math.ceil(Rs * rout * 1.05) + 2, fl = 1 + Math.sin(t * 23) * 0.04 + Math.sin(t * 57) * 0.03;
+    let blue = 0; const dop = (s) => { const D = 1 - 0.5 * s; blue = Math.max(0, D - 1.25) * 1.6; return Math.pow(D, 1.25); };
+    for (let y = Math.floor(CY - ext); y <= Math.ceil(CY + ext); y++) for (let x = Math.floor(CX - ext); x <= Math.ceil(CX + ext); x++) {
+      const dx = (x + 0.5 - CX) / Rs, dy = (y + 0.5 - CY) / Rs, u = dx * ct + dy * st, v = -dx * st + dy * ct, r = Math.hypot(u, v); if (r > rout * 1.05) continue;
+      let I = 0, on = false; blue = 0;
+      if (r >= 1) {
+        const s = Math.max(0, -v / r), e = (r - 1) / (0.1 + 0.62 * Math.pow(s, 1.3));                 // halo: cakram sisi belakang yang terlipat di atas bayangan
+        if (v < 0.25 && e < 1) { I = Math.max(I, (1 - Math.pow(e, 1.6)) * (0.72 + 0.28 * tex(rin + e * 1.5, Math.atan2(v, u), t)) * 0.9 * dop(u / r)); on = true; }
+        const s2 = Math.max(0, v / r), e2 = (r - 1) / (0.04 + 0.2 * Math.pow(s2, 1.3));               // halo tipis di bawah
+        if (v > -0.25 && e2 < 1) { I = Math.max(I, (1 - Math.pow(e2, 1.4)) * 0.5 * dop(u / r)); on = true; }
+        if (r < 1.075 + 0.04 * flare) { I = Math.max(I, 1.05 * fl * (0.75 + 0.25 * dop(u / r))); on = true; }   // cincin foton
+      }
+      let shadow = r < 1; const rho = Math.hypot(u, v / q);
+      if (rho >= rin && rho <= rout && (v >= 0 || r >= 1)) {                                       // cakram elips: ρ = jarak di bidang cakram (v diregangkan 1/q)
+        const k = (rho - rin) / (rout - rin), Id = 1.25 * Math.pow(1 - k, 1.1) * (0.7 + 0.3 * sm(0, 0.05, k)) * (1 - sm(0.72, 1, k)) * tex(rho, Math.atan2(v / q, u), t) * dop(u / rho);
+        if (v >= 0) { if (Id > 0.08) { I = Id; shadow = false; on = true; } } else if (Id > I) { I = Id; on = true; }   // v>=0 = sisi depan menutupi bayangan
+      }
+      const col = shadow || !on ? null : tone(I * bright, x, y, blue);
+      if (!col) { if (r < 1) buf.px(x, y, SHADOW); continue; }
+      buf.px(x, y, col);
+      if (I * bright > 0.35 && ((x + y) & 1) === 0) lit.glow(x, y, 1.5, col, 0.1 * Math.min(1.3, I * bright));
+    }
+    lit.glow(CX, CY, Rs * 5.5, [255, 170, 90], 0.3 * bright); lit.glow(CX, CY, Rs * 2.2, [255, 225, 190], 0.14 * bright);
+  };
+  const spawn = (x, y, n) => { for (let i = 0; i < n; i++) { const a = Math.atan2(y - CY, x - CX) + R() * 0.8 - 0.4, d = Math.hypot(x - CX, y - CY) || 40, vt = 40 + R() * 60; parts.push({ x: x + R() * 4, y: y + R() * 4, vx: -Math.sin(a) * vt, vy: Math.cos(a) * vt, life: 1.8 + R(), col: SHREDS[(R() * 4) | 0] }); } };
+  PX.loop(host, (dt) => {
+    t += dt; flare -= flare * 3 * dt; acc += dt;
+    if (acc > 0.5) { acc = 0; const a = R() * 6.283; spawn(CX + Math.cos(a) * 70, CY + Math.sin(a) * 40, 2); }
+    for (const k of p.clicks.splice(0)) spawn(k.x, k.y, 14);
+    for (let i = parts.length - 1; i >= 0; i--) {                                                  // gravitasi + pusaran + drag, dimakan bila masuk horizon
+      const o = parts[i], dx = CX - o.x, dy = CY - o.y, d2 = dx * dx + dy * dy, d = Math.sqrt(d2) || 1;
+      if (d < Rs * 0.9 || (o.life -= dt) <= 0) { if (d < Rs * 0.9) flare = Math.min(2.5, flare + 0.3); parts.splice(i, 1); continue; }
+      const a = (G / (d2 + Rs * Rs)) * Math.min(1, (REACH - d) / (REACH * 0.25)) * dt, ux = dx / d, uy = dy / d;
+      o.vx += (ux - uy * SWIRL) * Math.max(0, a); o.vy += (uy + ux * SWIRL) * Math.max(0, a); const drag = Math.min(0.2, (1 - Math.min(1, d / REACH)) * 1.4 * dt); o.vx -= o.vx * drag; o.vy -= o.vy * drag;
+      o.x += o.vx * dt; o.y += o.vy * dt;
+    }
+    lit.clear(); lensPass(); hole();
+    for (const o of parts) { const sp = Math.hypot(o.vx, o.vy) || 1, L = Math.min(8, 1 + sp * 0.03);                      // serpihan = garis pendek berekor searah kecepatan
+      for (let s = 0; s <= L; s++) { const k = 1 - s / L; buf.px(o.x - (o.vx / sp) * s, o.y - (o.vy / sp) * s, PX.mix(PX.hex('#2a1a44'), o.col, k)); }
+      lit.glow(o.x, o.y, 3, o.col, 0.25); }
+    buf.flush(c); lit.flush(c);
   });
 };
 ```

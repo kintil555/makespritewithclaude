@@ -5,11 +5,11 @@
   "categories": {
     "rendering": {
       "title": "Teknik Rendering",
-      "desc": "Dari render halus ke grid piksel, palet, dithering, buffer, sprite sheet, komposit sprite, parallax."
+      "desc": "Dari render halus ke grid piksel, palet, dithering, texturing, buffer, sprite sheet, komposit sprite, parallax."
     },
     "efek": {
       "title": "Efek (VFX)",
-      "desc": "Tracer, ledakan, lubang, api, bola neutron & pulsar — semua prosedural."
+      "desc": "Resep VFX, tracer, ledakan, lubang, api, hujan, bola neutron, pulsar & black hole — semua prosedural."
     },
     "karakter": {
       "title": "Karakter Prosedural",
@@ -89,6 +89,18 @@
       ]
     },
     {
+      "slug": "pixel-texturing",
+      "title": "Texturing pixel art prosedural — ramp, klaster, tile, dan bake efisien",
+      "category": "rendering",
+      "summary": "Cara membuat tekstur (batu, rumput, kayu, bata, lava) yang tetap terasa piksel — ramp bergeser hue, noise yang bisa di-tile, dither hanya di batas klaster, lighting dari height-map — lalu di-bake sekali ke indeks palet agar murah.",
+      "html": "https://makespritewithclaude.pages.dev/articles/pixel-texturing.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/pixel-texturing.md",
+      "code": [
+        "https://makespritewithclaude.pages.dev/src/code/15-texture.js",
+        "https://makespritewithclaude.pages.dev/src/code/49-demo-texture.js"
+      ]
+    },
+    {
       "slug": "parallax",
       "title": "Parallax berlapis — kedalaman dari faktor kecepatan",
       "category": "rendering",
@@ -98,6 +110,15 @@
       "code": [
         "https://makespritewithclaude.pages.dev/src/code/14-parallax.js"
       ]
+    },
+    {
+      "slug": "vfx-recipe",
+      "title": "Resep VFX prosedural — dari ide ke efek piksel (pulsar, black hole, ledakan)",
+      "category": "efek",
+      "summary": "Kerangka satu pola untuk membuat efek apa pun — fase waktu, bentuk dari persamaan per piksel, intensitas → ramp + Bayer, partikel berekor, glow additive, layer belakang/depan, game feel — beserta peta efek ke artikel contoh.",
+      "html": "https://makespritewithclaude.pages.dev/articles/vfx-recipe.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/vfx-recipe.md",
+      "code": []
     },
     {
       "slug": "tracer-muzzle",
@@ -175,6 +196,17 @@
       "code": [
         "https://makespritewithclaude.pages.dev/src/code/44-demo-neutron.js",
         "https://makespritewithclaude.pages.dev/src/code/45-demo-pulsar.js"
+      ]
+    },
+    {
+      "slug": "black-hole",
+      "title": "Black hole prosedural — lensa gravitasi, cakram akresi, dan serpihan jatuh",
+      "category": "efek",
+      "summary": "Cara menggambar black hole piksel — lensa per piksel yang membelokkan latar, cakram elips berdoppler, halo di atas bayangan, tekstur spiral Kepler, partikel tersedot berputar, serta timeline lahir–hidup–runtuh.",
+      "html": "https://makespritewithclaude.pages.dev/articles/black-hole.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/black-hole.md",
+      "code": [
+        "https://makespritewithclaude.pages.dev/src/code/50-demo-blackhole.js"
       ]
     },
     {

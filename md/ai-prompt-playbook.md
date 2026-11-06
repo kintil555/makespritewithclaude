@@ -38,7 +38,7 @@ Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersi
 1. Tentukan spesifikasi (template di atas).
 2. Buat **rig** halus (tulang/IK atau persamaan bentuk) — [stickman IK](https://makespritewithclaude.pages.dev/md/hires-to-pixel.md) atau [karakter dari persamaan](https://makespritewithclaude.pages.dev/md/procedural-character.md).
 3. Turunkan ke piksel dengan `PX.pixelize` / pemetaan per-piksel.
-4. Tambah efek dari katalog: [tracer](https://makespritewithclaude.pages.dev/md/tracer-muzzle.md), [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md), [lubang](https://makespritewithclaude.pages.dev/md/crater-hole.md), [api](https://makespritewithclaude.pages.dev/md/fire.md), [neutron/pulsar](https://makespritewithclaude.pages.dev/md/neutron-psr.md).
+4. Tambah efek dari katalog: [tracer](https://makespritewithclaude.pages.dev/md/tracer-muzzle.md), [ledakan](https://makespritewithclaude.pages.dev/md/explosion.md), [lubang](https://makespritewithclaude.pages.dev/md/crater-hole.md), [api](https://makespritewithclaude.pages.dev/md/fire.md), [neutron/pulsar](https://makespritewithclaude.pages.dev/md/neutron-psr.md), [black hole](https://makespritewithclaude.pages.dev/md/black-hole.md). Efek baru? Ikuti [resep VFX](https://makespritewithclaude.pages.dev/md/vfx-recipe.md). Material/ubin? Ikuti [texturing](https://makespritewithclaude.pages.dev/md/pixel-texturing.md).
 5. Bake atlas ([sprite sheet](https://makespritewithclaude.pages.dev/md/sprite-sheet.md)) dan uji di latar gelap.
 6. Periksa checklist.
 

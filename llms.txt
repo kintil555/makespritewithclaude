@@ -11,10 +11,12 @@ Catatan: kode di situs ini adalah JavaScript murni tanpa dependensi, berjalan di
 - [Buffer piksel Uint32 dan aturan integer](https://makespritewithclaude.pages.dev/md/pixel-buffer.md): Cara menggambar ribuan piksel efek per frame dengan cepat dan tanpa blur, memakai buffer Uint32 dan satu putImageData.
 - [Sprite sheet — grid, pivot, texturing, ekspor anti-halo](https://makespritewithclaude.pages.dev/md/sprite-sheet.md): Skema koordinat atlas, pivot bottom-center, kode canvas dan CSS, palet terbatas, kompresi PNG, image-rendering, dan cara menghindari halo putih.
 - [Komposit sprite bertahap — outline, bayangan jatuh, flash, tint sisi jauh](https://makespritewithclaude.pages.dev/md/sprite-composite.md): Satu sprite berindeks diolah dari mask dalam urutan tetap — bayangan, outline, badan — lalu flash putih saat kena hit dan tint untuk bagian sisi jauh, semuanya di grid integer.
+- [Texturing pixel art prosedural — ramp, klaster, tile, dan bake efisien](https://makespritewithclaude.pages.dev/md/pixel-texturing.md): Cara membuat tekstur (batu, rumput, kayu, bata, lava) yang tetap terasa piksel — ramp bergeser hue, noise yang bisa di-tile, dither hanya di batas klaster, lighting dari height-map — lalu di-bake sekali ke indeks palet agar murah.
 - [Parallax berlapis — kedalaman dari faktor kecepatan](https://makespritewithclaude.pages.dev/md/parallax.md): Latar 3–5 lapisan siluet yang di-tile mulus, digeser dengan faktor kecepatan berbeda, di-snap ke piksel integer, dengan kabut yang dibakar ke palet lapisan, bukan alpha per frame.
 
 ## Efek (VFX)
 
+- [Resep VFX prosedural — dari ide ke efek piksel (pulsar, black hole, ledakan)](https://makespritewithclaude.pages.dev/md/vfx-recipe.md): Kerangka satu pola untuk membuat efek apa pun — fase waktu, bentuk dari persamaan per piksel, intensitas → ramp + Bayer, partikel berekor, glow additive, layer belakang/depan, game feel — beserta peta efek ke artikel contoh.
 - [Tracer peluru, muzzle flash, dan percikan tumbukan](https://makespritewithclaude.pages.dev/md/tracer-muzzle.md): Jejak peluru 3 tingkat (inti 1px, pasangan piksel, ekor gelap), kilatan moncong dari sinar acak, dan percikan berpantul.
 - [Glow — cahaya additive di buffer terpisah](https://makespritewithclaude.pages.dev/md/glow.md): Cara membuat cahaya (glow) pixel art yang halus tapi tetap tajam — buffer cahaya sendiri, profil (1−d)², pencampuran additive, dan kapan memakai dither sebagai gantinya.
 - [Ledakan prosedural — roket dan neutron](https://makespritewithclaude.pages.dev/md/explosion.md): Dua jenis ledakan berbeda — roket/launcher (kilat, cincin, puff bola api, asap besar, percikan) dan neutron (Cherenkov: gumpalan 5 disc, sinar, gelombang kejut) — plus cahaya glow dan getaran layar.
@@ -22,6 +24,7 @@ Catatan: kode di situs ini adalah JavaScript murni tanpa dependensi, berjalan di
 - [Api dan asap dari partikel disc berlapis](https://makespritewithclaude.pages.dev/md/fire.md): Ramp 9 warna, partikel membesar saat menua, inti bergeser ke atas, highlight kecil, glow additive, dan asap.
 - [Hujan prosedural 3 lapis kedalaman](https://makespritewithclaude.pages.dev/md/rain.md): Tetes dua warna, tiga lapis kecepatan, kabut tanah ber-noise, percikan setengah elips, dan lapis depan yang menutupi karakter.
 - [Bola neutron dan pulsar (PSR)](https://makespritewithclaude.pages.dev/md/neutron-psr.md): Proyektil bola neutron biru dengan jejak, ledakan Cherenkov, dan pulsar ber-sinar menyapu dengan garis medan dipol.
+- [Black hole prosedural — lensa gravitasi, cakram akresi, dan serpihan jatuh](https://makespritewithclaude.pages.dev/md/black-hole.md): Cara menggambar black hole piksel — lensa per piksel yang membelokkan latar, cakram elips berdoppler, halo di atas bayangan, tekstur spiral Kepler, partikel tersedot berputar, serta timeline lahir–hidup–runtuh.
 
 ## Karakter Prosedural
 

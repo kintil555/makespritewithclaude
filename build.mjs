@@ -7,8 +7,8 @@ const SITE = 'https://makespritewithclaude.pages.dev';
 const NAME = 'Make Sprite With Claude';
 const TAGLINE = 'Teknik membuat sprite pixel art prosedural yang bagus — ditulis agar mudah dibaca dan ditiru oleh AI.';
 const CATS = {
-  rendering: { title: 'Teknik Rendering', desc: 'Dari render halus ke grid piksel, palet, dithering, buffer, sprite sheet, komposit sprite, parallax.' },
-  efek: { title: 'Efek (VFX)', desc: 'Tracer, ledakan, lubang, api, bola neutron & pulsar — semua prosedural.' },
+  rendering: { title: 'Teknik Rendering', desc: 'Dari render halus ke grid piksel, palet, dithering, texturing, buffer, sprite sheet, komposit sprite, parallax.' },
+  efek: { title: 'Efek (VFX)', desc: 'Resep VFX, tracer, ledakan, lubang, api, hujan, bola neutron, pulsar & black hole — semua prosedural.' },
   karakter: { title: 'Karakter Prosedural', desc: 'Menggambar karakter dari persamaan, bukan dari piksel manual.' },
   ai: { title: 'Panduan untuk AI', desc: 'Template prompt, aturan ketat, dan checklist agar hasil AI konsisten.' },
 };

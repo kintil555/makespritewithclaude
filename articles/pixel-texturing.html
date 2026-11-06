@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Texturing pixel art prosedural — ramp, klaster, tile, dan bake efisien — Make Sprite With Claude</title>
+<meta name="description" content="Cara membuat tekstur (batu, rumput, kayu, bata, lava) yang tetap terasa piksel — ramp bergeser hue, noise yang bisa di-tile, dither hanya di batas klaster, lighting dari height-map — lalu di-bake sekali ke indeks palet agar murah.">
+<link rel="canonical" href="https://makespritewithclaude.pages.dev/articles/pixel-texturing.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://makespritewithclaude.pages.dev/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://makespritewithclaude.pages.dev/md/pixel-texturing.md" title="Markdown">
+<meta property="og:title" content="Texturing pixel art prosedural — ramp, klaster, tile, dan bake efisien — Make Sprite With Claude"><meta property="og:description" content="Cara membuat tekstur (batu, rumput, kayu, bata, lava) yang tetap terasa piksel — ramp bergeser hue, noise yang bisa di-tile, dither hanya di batas klaster, lighting dari height-map — lalu di-bake sekali ke indeks palet agar murah."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Texturing pixel art prosedural — ramp, klaster, tile, dan bake efisien","description":"Cara membuat tekstur (batu, rumput, kayu, bata, lava) yang tetap terasa piksel — ramp bergeser hue, noise yang bisa di-tile, dither hanya di batas klaster, lighting dari height-map — lalu di-bake sekali ke indeks palet agar murah.","inLanguage":"id","url":"https://makespritewithclaude.pages.dev/articles/pixel-texturing.html","articleSection":"Teknik Rendering","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<div class="shell">
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#rendering">Teknik Rendering</a></p>
+<h1>Texturing pixel art prosedural — ramp, klaster, tile, dan bake efisien</h1><p class="lead">Cara membuat tekstur (batu, rumput, kayu, bata, lava) yang tetap terasa piksel — ramp bergeser hue, noise yang bisa di-tile, dither hanya di batas klaster, lighting dari height-map — lalu di-bake sekali ke indeks palet agar murah.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/pixel-texturing.md">md/pixel-texturing.md</a></p>
+<h2>Prinsip: tekstur piksel = keputusan, bukan gradient</h2>
+<p>Tekstur piksel yang bagus punya tiga lapis yang dibaca mata berurutan: <strong>(1) bentuk besar</strong> (blok warna, retakan, alur), <strong>(2) klaster</strong> (kumpulan piksel sewarna, bukan piksel tunggal acak), <strong>(3) detail kecil</strong> (1–2 piksel highlight/bintik). Noise halus yang langsung dipetakan ke warna menghasilkan lapis (3) saja — hasilnya tampak kotor dan seperti hasil <em>resize</em>. Karena itu seluruh pipeline di bawah selalu: <strong>nilai halus → kuantisasi ke ramp kecil → dither hanya di batas</strong>.</p>
+<p>Ringkas untuk AI: jangan menaruh warna per piksel dengan <code>random()</code>. Hitung satu <strong>nilai <code>k</code> 0..1</strong> per texel dari persamaan, beri <strong>cahaya</strong>, lalu ubah ke <strong>indeks ramp</strong> dengan <code>PX.tone</code>.</p>
+<h2>Pipeline 5 langkah</h2>
+<ol>
+<li><strong>Material = ramp + fungsi nilai.</strong> Ramp 5–6 warna (gelap → terang). Fungsi <code>f(x, y, S)</code> mengembalikan <code>k</code> (mis. batu = noise sel + fbm, retakan menurunkan <code>k</code>).</li>
+<li><strong>Height-field.</strong> Isi array <code>F[S×S]</code> dengan <code>f</code>. Nilai ini sekaligus dianggap <em>tinggi permukaan</em>.</li>
+<li><strong>Lighting dari height (emboss).</strong> <code>lit = (F[kiri-atas] − F[kanan-bawah]) · emb</code>. Tepi yang menghadap kiri-atas jadi terang, kanan-bawah gelap — cahaya satu arah yang konsisten dengan seluruh sprite. Tetangga di-<em>wrap</em> (<code>(i+S)%S</code>) agar tile tetap mulus.</li>
+<li><strong>Tone.</strong> <code>idx = PX.tone(F·0.75 + 0.12 + lit, x, y, jumlahRamp, w)</code> (lihat bagian dither).</li>
+<li><strong>Bake.</strong> Simpan <code>Uint8Array</code> indeks + palet. Seterusnya yang dipakai tiap frame hanya hasil bake.</li>
+</ol>
+<div class="demo" data-demo="texture"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<p>Ganti material, mode dither, dan ukuran tile. Tampilan 3×3 membuktikan tile mulus. Mode &quot;tanpa dither&quot; memperlihatkan banding; &quot;dither penuh&quot; memperlihatkan kenapa noise di mana-mana terlihat kotor.</p>
+<h2>Ramp bergeser hue</h2>
+<p>Aturan yang dipakai pixel artist dan pack tekstur retro: mulai dari <strong>midtone</strong>, tambah <strong>satu bayangan dan satu highlight</strong>, baru tambah tingkat lain; jarak kecerahan antar tingkat <strong>seimbang</strong>; dan geser hue — bayangan sedikit lebih dingin (ungu/biru), highlight lebih hangat (kuning/putih). Tanpa pergeseran, ramp terlihat seperti sekadar pengaturan kecerahan dan pucat.</p>
+<table>
+<thead>
+<tr>
+<th>Material</th>
+<th>Ramp (gelap → terang)</th>
+<th>Catatan</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Batu</td>
+<td><code>#2b2a3a #4a4a5e #6e6f80 #9a9aa6 #cfcdd2</code></td>
+<td>bayangan keunguan</td>
+</tr>
+<tr>
+<td>Rumput</td>
+<td><code>#1f3a2e #2f6b3a #4f9a3f #86c24a #c9e56e</code></td>
+<td>bayangan kebiruan, highlight kekuningan</td>
+</tr>
+<tr>
+<td>Kayu</td>
+<td><code>#2a1a22 #5a3326 #8a5530 #b57d44 #dba868</code></td>
+<td>bayangan ke arah ungu-cokelat</td>
+</tr>
+<tr>
+<td>Bata</td>
+<td><code>#2d1b25 #5c2b2e #8c4636 #b86a48 #e0a070</code></td>
+<td></td>
+</tr>
+<tr>
+<td>Lava</td>
+<td><code>#1a0e1e #4a1424 #a82a1a #f06a1e #ffd24a #fff4c8</code></td>
+<td>6 warna, ujung terang = emisi</td>
+</tr>
+</tbody></table>
+<p>Jangan pakai hitam murni (<code>#000</code>) atau putih murni sebagai warna material; sisakan untuk outline atau kilat.</p>
+<h2>Noise yang cocok untuk piksel</h2>
+<p>Semua fungsi ada di <code>15-texture.js</code>, deterministik per <code>seed</code>, dan <strong>bisa di-tile</strong>.</p>
+<ul>
+<li><code>PX.vnoise(x, y, seed, px, py)</code> — value noise halus. <code>x,y</code> dalam satuan sel lattice. Argumen <code>px/py</code> adalah <strong>periode dalam sel</strong>; dengan periode, noise berulang tepat tiap periode sehingga tile mulus.</li>
+<li><code>PX.fbm(...)</code> — jumlah oktaf (frekuensi ×2, amplitudo ×0.5). Periode ikut dikali 2 tiap oktaf.</li>
+<li><code>PX.worley(...)</code> → <code>[jarakTerdekat, jarak2 − jarak1]</code>. Elemen kedua ≈ 0 di batas sel: pakai untuk <strong>retakan batu, mortar, pecahan lava</strong>.</li>
+<li><code>PX.hash(x, y, seed)</code> — noise blok tanpa interpolasi: untuk bintik acak 1 piksel (bunga/helai rumput), bukan untuk bentuk besar.</li>
+</ul>
+<p><strong>Aturan tile mulus:</strong> ukuran tile <code>S</code> kelipatan 4 (16/32/64) agar Bayer 4×4 ikut mulus; ukuran sel noise harus <strong>pembagi <code>S</code></strong> (<code>S/8</code>, <code>S/4</code>) sehingga periode = bilangan bulat; tetangga lighting di-wrap. Cek tile dalam tampilan 3×3 <strong>sebelum</strong> menambah shading — kesalahan tile lebih mudah terlihat di tahap awal.</p>
+<p><strong>Anisotropi</strong>: rumput = fbm direntang vertikal (<code>x/2, y/8</code>), kayu = <code>sin</code> pada <code>y + warp</code> dengan <code>warp</code> dari fbm. Cukup skala sumbu berbeda; bukan rotasi.</p>
+<h2>Klaster vs dither</h2>
+<p><code>PX.tone(k, x, y, n, w)</code> memetakan <code>k</code> ke indeks ramp. Parameter <code>w</code> adalah lebar pita dither di sekitar batas dua tingkat:</p>
+<table>
+<thead>
+<tr>
+<th><code>w</code></th>
+<th>Hasil</th>
+<th>Pakai untuk</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0</code></td>
+<td>klaster keras, ada banding</td>
+<td>permukaan datar bergaya NES/GB, UI</td>
+</tr>
+<tr>
+<td><code>0.25</code> (default)</td>
+<td>klaster solid, dither <strong>hanya di batas</strong></td>
+<td>hampir semua tekstur</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>dither di seluruh area</td>
+<td>transisi besar (langit, kabut), bukan material</td>
+</tr>
+</tbody></table>
+<p>Dither yang menyebar ke seluruh permukaan membuat tekstur berisik dan menghilangkan &quot;bentuk&quot;. Dither di batas membuat transisi terlihat sengaja. Pola Bayer memakai koordinat texel lokal, jadi tetap stabil dan ikut tile.</p>
+<h2>Resep material</h2>
+<table>
+<thead>
+<tr>
+<th>Material</th>
+<th>Inti persamaan</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Batu</td>
+<td><code>worley(x/8,y/8)</code>: <code>edge &lt; 0.09</code> → <code>k ×= 0.3</code> (retak); <code>k = 0.25 + 0.55·fbm + 0.2·d1</code></td>
+</tr>
+<tr>
+<td>Rumput</td>
+<td><code>0.2 + 0.55·fbm(x/2, y/8)</code> + 10% piksel <code>hash &gt; 0.9</code> dinaikkan <code>+0.25</code></td>
+</tr>
+<tr>
+<td>Kayu</td>
+<td><code>0.5 + 0.35·sin((y+warp)·2π·4/S) + 0.15·(hash−0.5)</code></td>
+</tr>
+<tr>
+<td>Bata</td>
+<td>tinggi bata <code>S/4</code>, lebar <code>S/2</code>, baris ganjil digeser setengah; garis mortar <code>k = 0.1</code>; tiap bata <code>0.45 + 0.3·hash(id) + 0.25·fbm</code></td>
+</tr>
+<tr>
+<td>Lava</td>
+<td><code>glow = 1 − edge/0.35</code> kuadrat; <code>k = 0.12 + 0.2·fbm + 0.75·glow²</code> — retakan menjadi sumber cahaya</td>
+</tr>
+</tbody></table>
+<h2>Teknik efisien</h2>
+<ul>
+<li><strong>Bake sekali.</strong> Hitung noise hanya saat memuat atau ganti seed. Tiap frame cukup <code>drawImage(tile)</code>. Noise fbm per piksel per frame adalah kesalahan performa paling umum.</li>
+<li><strong>Indeks, bukan RGB.</strong> Simpan texel sebagai 1 byte (<code>Uint8Array</code>) + palet. Memori 4× lebih kecil, dan <em>recolor</em> = mengganti palet (biome, siang/malam, kena-hit) tanpa menghitung ulang tekstur.</li>
+<li><strong>Animasi dengan memutar palet</strong> (<em>palette cycling</em>): untuk lava/air, geser indeks pada daerah bertanda: <code>color = pal[(idx + floor(t·8)) % n]</code> hanya untuk texel bermask. Nol hitungan noise.</li>
+<li><strong>Tile kecil + variasi.</strong> Bake 3–4 varian tile 16×16 atau 32×32 (seed berbeda), pilih per sel dengan <code>hash(cx, cy) → varian</code>. Ini menghilangkan pola berulang tanpa atlas besar.</li>
+<li><strong>Layar penuh</strong>: <code>ctx.createPattern(tileCanvas, &#39;repeat&#39;)</code> dengan <code>imageSmoothingEnabled = false</code>, atau <code>drawImage</code> per sel dengan posisi integer.</li>
+<li><strong>Ekspor</strong>: PNG-8 (indexed) dan skala tampilan bilangan bulat — lihat <a href="sprite-sheet.html">sprite sheet</a>. Anti-halo &amp; <code>image-rendering: pixelated</code> ada di sana.</li>
+<li><strong>Detail di atas tile</strong>, bukan di dalamnya: retak besar, lumut, noda dibuat sebagai <em>decal</em> sprite kecil (<a href="sprite-composite.html">komposit</a>) agar tile tetap bisa diulang.</li>
+</ul>
+<pre><code class="language-js">// pakai: bake sekali -&gt; gambar berulang
+const tile = PX.texCanvas(PX.bakeTex(&#39;brick&#39;, 32, { seed: 4, dither: &#39;cluster&#39;, emb: 0.5 }));
+for (let y = 0; y &lt; H; y += 32) for (let x = 0; x &lt; W; x += 32) ctx.drawImage(tile, x, y);
+
+// palette cycling untuk lava (mask = texel yang boleh beranimasi)
+const colorOf = (i, mask, t, pal) =&gt; pal[mask ? (i + Math.floor(t * 6)) % pal.length : i];
+</code></pre>
+<h2>Checklist untuk AI</h2>
+<ol>
+<li>Ramp 4–6 warna per material, bergeser hue, tanpa hitam murni.</li>
+<li>Satu arah cahaya (kiri-atas) untuk seluruh adegan.</li>
+<li>Nilai <code>k</code> dari persamaan, bukan <code>Math.random()</code> per piksel.</li>
+<li>Sel noise membagi <code>S</code>; <code>S</code> ∈ {16, 32, 64}; tile diuji dalam grid 3×3.</li>
+<li><code>w = 0.25</code> kecuali ada alasan; tidak ada piksel yatim (1 piksel warna beda di tengah klaster) kecuali sebagai bintik yang disengaja.</li>
+<li>Bake sekali, simpan indeks, ubah ke canvas, gambar dengan skala bilangan bulat.</li>
+<li>Periksa dengan <strong>melihat</strong> hasil yang diperbesar nearest-neighbor, bukan menebak.</li>
+</ol>
+<p>Referensi yang dipakai untuk aturan di atas: <a href="https://blockbench.net/wiki/guides/minecraft-style-guide">Minecraft Style Guide (Blockbench)</a> — ramp dari midtone, hue shifting, dithering, uji tile 3×3; <a href="https://phaser.io/packs/retro-textures/api">Phaser retro textures</a> — ramp 8 tingkat bergeser hue, height-map dan glow-mask per texel; <a href="https://phaser.io/packs/procgen/api">Phaser procgen</a> — noise Perlin/value/Worley dengan parameter <code>period</code> agar tile.</p>
+<h2>Kode</h2>
+<details class="code" open><summary>Kode: <code>src/code/15-texture.js</code></summary><pre><code class="language-js">// 15-texture.js — texturing prosedural bergaya piksel: noise yang bisa di-tile, ramp bergeser hue, dither hanya di batas klaster, lighting dari height-map. Dibake SEKALI ke indeks palet.
+PX.vnoise = (x, y, seed = 0, px = 0, py = px) =&gt; {      // value noise halus 0..1; x,y dalam satuan sel lattice; px/py = periode (sel) agar tile mulus
+  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const wx = (i) =&gt; (px ? ((i % px) + px) % px : i), wy = (j) =&gt; (py ? ((j % py) + py) % py : j);
+  const a = PX.hash(wx(x0), wy(y0), seed), b = PX.hash(wx(x0 + 1), wy(y0), seed), c = PX.hash(wx(x0), wy(y0 + 1), seed), d = PX.hash(wx(x0 + 1), wy(y0 + 1), seed);
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+};
+PX.fbm = (x, y, seed = 0, px = 0, py = px, oct = 3) =&gt; {   // tumpuk oktaf: frekuensi x2, amplitudo x0.5 (periode ikut x2 -&gt; tetap tile)
+  let s = 0, n = 0, a = 0.5;
+  for (let o = 0; o &lt; oct; o++, a *= 0.5, x *= 2, y *= 2, px *= 2, py *= 2) { s += a * PX.vnoise(x, y, seed + o * 17, px, py); n += a; }
+  return s / n;
+};
+PX.worley = (x, y, seed = 0, px = 0, py = px) =&gt; {      // noise sel: [jarak titik terdekat, jarak2 - jarak1]; elemen ke-2 ≈ 0 di batas sel (retakan/mortar)
+  const x0 = Math.floor(x), y0 = Math.floor(y); let d1 = 9, d2 = 9;
+  for (let j = -1; j &lt;= 1; j++) for (let i = -1; i &lt;= 1; i++) {
+    const cx = x0 + i, cy = y0 + j, wx = px ? ((cx % px) + px) % px : cx, wy = py ? ((cy % py) + py) % py : cy;
+    const d = Math.hypot(cx + PX.hash(wx, wy, seed) - x, cy + PX.hash(wx, wy, seed + 1) - y);
+    if (d &lt; d1) { d2 = d1; d1 = d; } else if (d &lt; d2) d2 = d;
+  }
+  return [d1, d2 - d1];
+};
+
+// Pilih indeks ramp dari nilai k (0..1). w = lebar pita dither: 0 = klaster keras tanpa dither, 0.25 = dither hanya di batas klaster, 1 = dither penuh.
+PX.tone = (k, x, y, n, w = 0.25) =&gt; {
+  const v = PX.clamp(k, 0, 0.9999) * (n - 1), i = Math.floor(v), f = v - i;
+  if (w &lt;= 0) return f &gt;= 0.5 ? i + 1 : i;
+  const t = PX.clamp((f - 0.5) / w + 0.5, 0, 1);
+  return i + (t &gt; PX.bayer(x, y) ? 1 : 0);
+};
+
+// Material = ramp (gelap -&gt; terang, hue bergeser) + fungsi nilai f(x,y,S,seed) -&gt; 0..1. Semua noise memakai periode bulat agar tile mulus.
+PX.MAT = {
+  stone: { ramp: ['#2b2a3a', '#4a4a5e', '#6e6f80', '#9a9aa6', '#cfcdd2'], f: (x, y, S, s) =&gt; {
+    const w = PX.worley(x / 8, y / 8, s, S / 8), crack = w[1] &lt; 0.09 ? 0.3 : 1;
+    return (0.25 + 0.55 * PX.fbm(x / 4, y / 4, s + 5, S / 4) + 0.2 * w[0]) * crack;
+  } },
+  grass: { ramp: ['#1f3a2e', '#2f6b3a', '#4f9a3f', '#86c24a', '#c9e56e'], f: (x, y, S, s) =&gt;
+    0.2 + 0.55 * PX.fbm(x / 2, y / 8, s, S / 2, S / 8) + (PX.hash(x, y, s + 3) &gt; 0.9 ? 0.25 : 0) },
+  wood: { ramp: ['#2a1a22', '#5a3326', '#8a5530', '#b57d44', '#dba868'], f: (x, y, S, s) =&gt; {
+    const warp = PX.fbm(x / 8, y / 4, s, S / 8, S / 4) * 5, g = Math.sin(((y + warp) * Math.PI * 2 * 4) / S);
+    return 0.5 + 0.35 * g + 0.15 * (PX.hash(x, y, s + 9) - 0.5);
+  } },
+  brick: { ramp: ['#2d1b25', '#5c2b2e', '#8c4636', '#b86a48', '#e0a070'], f: (x, y, S, s) =&gt; {
+    const bh = S / 4, bw = S / 2, row = Math.floor(y / bh), xx = (x + (row &amp; 1) * (bw / 2)) % S;
+    if (y % bh === 0 || xx % bw === 0) return 0.1;
+    return 0.45 + 0.3 * PX.hash(Math.floor(xx / bw), row, s) + 0.25 * PX.fbm(x / 4, y / 4, s + 2, S / 4);
+  } },
+  lava: { ramp: ['#1a0e1e', '#4a1424', '#a82a1a', '#f06a1e', '#ffd24a', '#fff4c8'], f: (x, y, S, s) =&gt; {
+    const w = PX.worley(x / 8, y / 8, s, S / 8), glow = Math.max(0, 1 - w[1] / 0.35);
+    return 0.12 + 0.2 * PX.fbm(x / 4, y / 4, s, S / 4) + 0.75 * glow * glow;
+  } },
+};
+
+// Bake: height-field -&gt; lighting emboss (kiri-atas) -&gt; indeks palet Uint8. Dijalankan sekali; hasilnya yang dipakai tiap frame.
+PX.bakeTex = (mat, S = 32, o = {}) =&gt; {
+  const m = PX.MAT[mat], n = m.ramp.length, seed = o.seed ?? 1, emb = o.emb ?? 0.5, w = o.dither === 'none' ? 0 : o.dither === 'full' ? 1 : 0.25;
+  const F = new Float32Array(S * S), idx = new Uint8Array(S * S), W = (i) =&gt; (i + S) % S;
+  for (let y = 0; y &lt; S; y++) for (let x = 0; x &lt; S; x++) F[y * S + x] = PX.clamp(m.f(x, y, S, seed), 0, 1);
+  for (let y = 0; y &lt; S; y++) for (let x = 0; x &lt; S; x++) {
+    const h = F[y * S + x], lit = (F[W(y - 1) * S + W(x - 1)] - F[W(y + 1) * S + W(x + 1)]) * emb;   // beda tetangga kiri-atas vs kanan-bawah
+    idx[y * S + x] = PX.tone(h * 0.75 + 0.12 + lit, x, y, n, w);                                   // Bayer memakai koordinat lokal (S kelipatan 4 -&gt; tetap tile)
+  }
+  return { S, idx, pal: m.ramp.map(PX.hex) };
+};
+PX.texCanvas = (t) =&gt; {                                  // indeks -&gt; canvas kecil (1 piksel = 1 texel); gambar membesar dengan image-rendering: pixelated
+  const cv = document.createElement('canvas'); cv.width = cv.height = t.S;
+  const img = new ImageData(t.S, t.S);
+  for (let i = 0; i &lt; t.idx.length; i++) { const c = t.pal[t.idx[i]]; img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1]; img.data[i * 4 + 2] = c[2]; img.data[i * 4 + 3] = 255; }
+  cv.getContext('2d').putImageData(img, 0, 0);
+  return cv;
+};</code></pre></details>
+<details class="code" open><summary>Kode: <code>src/code/49-demo-texture.js</code></summary><pre><code class="language-js">// Demo texturing: bake 1 tile ke indeks palet, tampilkan 3x3 untuk mengecek tile. Ganti material, mode dither, ukuran tile, kekuatan emboss.
+PX.demos.texture = (host) =&gt; {
+  let mat = 'stone', dither = 'cluster', S = 32, emb = 0.5, seed = 1, tile;
+  const cv = PX.canvas(host, 96, 96, 480, false, '3×3 tile — garis sambungan tidak boleh terlihat'), c = cv.getContext('2d'), ui = PX.ui(host);
+  const bake = () =&gt; { tile = PX.texCanvas(PX.bakeTex(mat, S, { dither, emb, seed })); draw(); };
+  const draw = () =&gt; { c.clearRect(0, 0, 96, 96); c.imageSmoothingEnabled = false; for (let j = 0; j &lt; 96 / S; j++) for (let i = 0; i &lt; 96 / S; i++) c.drawImage(tile, i * S, j * S); };
+  ui.select('Material', ['stone', 'grass', 'wood', 'brick', 'lava'], mat, (v) =&gt; { mat = v; bake(); });
+  ui.select('Dither', [{ label: 'klaster + dither di batas', value: 'cluster' }, { label: 'dither penuh (noisy)', value: 'full' }, { label: 'tanpa dither (banding)', value: 'none' }], dither, (v) =&gt; { dither = v; bake(); });
+  ui.select('Tile', ['16', '32'], String(S), (v) =&gt; { S = +v; bake(); });
+  ui.range('Emboss', 0, 1.2, 0.1, emb, (v) =&gt; { emb = v; bake(); });
+  ui.button('Seed baru', () =&gt; { seed = (seed * 7 + 3) % 97; bake(); });
+  bake();
+};</code></pre></details>
+
+<nav class="pn"><a href="sprite-composite.html">← Komposit sprite bertahap — outline, bayangan jatuh, flash, tint sisi jauh</a><a href="parallax.html">Parallax berlapis — kedalaman dari faktor kecepatan →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+</div>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>

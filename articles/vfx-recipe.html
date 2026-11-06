@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resep VFX prosedural — dari ide ke efek piksel (pulsar, black hole, ledakan) — Make Sprite With Claude</title>
+<meta name="description" content="Kerangka satu pola untuk membuat efek apa pun — fase waktu, bentuk dari persamaan per piksel, intensitas → ramp + Bayer, partikel berekor, glow additive, layer belakang/depan, game feel — beserta peta efek ke artikel contoh.">
+<link rel="canonical" href="https://makespritewithclaude.pages.dev/articles/vfx-recipe.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="alternate" type="text/plain" href="https://makespritewithclaude.pages.dev/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://makespritewithclaude.pages.dev/md/vfx-recipe.md" title="Markdown">
+<meta property="og:title" content="Resep VFX prosedural — dari ide ke efek piksel (pulsar, black hole, ledakan) — Make Sprite With Claude"><meta property="og:description" content="Kerangka satu pola untuk membuat efek apa pun — fase waktu, bentuk dari persamaan per piksel, intensitas → ramp + Bayer, partikel berekor, glow additive, layer belakang/depan, game feel — beserta peta efek ke artikel contoh."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Resep VFX prosedural — dari ide ke efek piksel (pulsar, black hole, ledakan)","description":"Kerangka satu pola untuk membuat efek apa pun — fase waktu, bentuk dari persamaan per piksel, intensitas → ramp + Bayer, partikel berekor, glow additive, layer belakang/depan, game feel — beserta peta efek ke artikel contoh.","inLanguage":"id","url":"https://makespritewithclaude.pages.dev/articles/vfx-recipe.html","articleSection":"Efek (VFX)","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<div class="shell">
+<header class="top"><a class="brand" href="../index.html"><span class="logo" aria-hidden="true"></span>Make Sprite With Claude</a>
+<nav aria-label="Navigasi"><a href="../index.html#rendering">Rendering</a><a href="../index.html#efek">Efek</a><a href="../index.html#karakter">Karakter</a><a href="../index.html#ai">Untuk AI</a></nav></header>
+<main><article>
+<p class="crumb"><a href="../index.html#efek">Efek (VFX)</a></p>
+<h1>Resep VFX prosedural — dari ide ke efek piksel (pulsar, black hole, ledakan)</h1><p class="lead">Kerangka satu pola untuk membuat efek apa pun — fase waktu, bentuk dari persamaan per piksel, intensitas → ramp + Bayer, partikel berekor, glow additive, layer belakang/depan, game feel — beserta peta efek ke artikel contoh.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/vfx-recipe.md">md/vfx-recipe.md</a></p>
+<h2>Satu pola untuk semua efek</h2>
+<p>Pulsar, black hole, ledakan, api, hujan: semuanya tersusun dari bahan yang sama. Jika AI hafal pola ini, efek baru tinggal memilih bahan dan persamaan.</p>
+<ol>
+<li><strong>Fase waktu.</strong> Pecah efek jadi fase: <em>lahir</em> (0.2–0.5 dtk, ukuran overshoot), <em>hidup</em> (loop, bereaksi pada input), <em>akhir</em> (runtuh/memudar). Simpan satu <code>t</code> dan turunkan semua nilai dari fungsi <code>t</code>, bukan banyak timer terpisah.</li>
+<li><strong>Bentuk dari persamaan, per piksel.</strong> Untuk tiap piksel dalam kotak pembatas, hitung koordinat lokal lalu intensitas <code>I</code> 0..1.</li>
+<li><strong>Intensitas → warna.</strong> <code>I</code> dipetakan ke <strong>ramp</strong> 6–9 warna dengan <strong>Bayer</strong> (<code>idx = floor(I·(n−1) + bayer)</code>), bukan gradient. Lihat <a href="dither-palette.html">palet &amp; dither</a>.</li>
+<li><strong>Partikel</strong> untuk hal yang bergerak bebas: garis pendek berekor searah kecepatan (bukan lingkaran blur).</li>
+<li><strong>Cahaya</strong> di buffer terpisah, additive: <a href="glow.html">glow</a>.</li>
+<li><strong>Layer</strong> <em>belakang</em> dan <em>depan</em> agar efek bisa menyelimuti karakter/objek.</li>
+<li><strong>Game feel</strong>: guncangan layar, kilat layar, riak/lensa — kecil tapi menentukan.</li>
+</ol>
+<h2>Bentuk dasar (persamaan per piksel)</h2>
+<p><code>dx, dy</code> = piksel dikurangi pusat (tambah 0.5 untuk pusat piksel). <code>u, v</code> = <code>dx, dy</code> diputar sebesar sudut sumbu.</p>
+<table>
+<thead>
+<tr>
+<th>Bentuk</th>
+<th>Persamaan</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Disc</td>
+<td><code>dx²+dy² ≤ r²</code></td>
+</tr>
+<tr>
+<td>Cincin</td>
+<td><code>abs(hypot(dx,dy) − r) ≤ tebal/2</code></td>
+</tr>
+<tr>
+<td>Sinar / kerucut</td>
+<td><code>I = (1 − u/L)·(1 − abs(v)/w)^0.8</code>, lebar <code>w = w0 + k·u</code></td>
+</tr>
+<tr>
+<td>Elips (cakram miring)</td>
+<td><code>ρ = hypot(u, v/q)</code>, <code>q</code> = rasio miring (0.2 ≈ hampir tepi)</td>
+</tr>
+<tr>
+<td>Spiral berputar</td>
+<td><code>sudut = θ + c·ρ^−1.5·t</code> (dalam lebih cepat, hukum Kepler)</td>
+</tr>
+<tr>
+<td>Garis medan dipol</td>
+<td><code>r = s·cos²λ</code>; titik <code>(r·sinλ, ±r·cosλ)</code></td>
+</tr>
+<tr>
+<td>Gelombang kejut</td>
+<td>cincin <code>r0 → r1</code> dengan <code>e = 1 − (1−k)³</code>, tebal mengecil</td>
+</tr>
+<tr>
+<td>Halo cahaya</td>
+<td><code>(1 − d/r)²</code> di buffer additive</td>
+</tr>
+</tbody></table>
+<h2>Fungsi waktu dan easing yang dipakai berulang</h2>
+<pre><code class="language-js">const clamp = (v, a = 0, b = 1) =&gt; Math.min(b, Math.max(a, v));
+const smooth = (a, b, x) =&gt; { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };   // 0-&gt;1 halus
+const easeOut = (k) =&gt; 1 - (1 - k) ** 3;                                       // cepat lalu melambat: ledakan, gelombang
+const pulse = (p, c, w) =&gt; Math.exp(-(((p - c) / w) ** 2));                    // satu denyut (lonceng) di posisi c
+const heartbeat = (t, T = 0.85) =&gt; { const p = (t % T) / T; return pulse(p, 0.06, 0.045) + 0.7 * pulse(p, 0.26, 0.045); };
+const overshoot = (k) =&gt; 1 + 1.7 * (k - 1) ** 3 + 0.7 * (k - 1) ** 2;           // lahir membesar lalu mengendap (k 0..1)
+</code></pre>
+<h2>Kerangka kode efek</h2>
+<pre><code class="language-js">function makeFX({ x, y, life = 2, seed = 1 }) {
+  const R = PX.rng(seed), parts = [], rings = [];
+  let t = 0;
+  return {
+    update(dt) {
+      t += dt;
+      // 1) spawn partikel/cincin sesuai fase  2) gerakkan  3) buang yang mati (iterasi mundur + splice)
+    },
+    draw(buf, lit, layer) {            // layer: &#39;back&#39; | &#39;front&#39;
+      // per piksel dalam kotak pembatas: hitung I -&gt; ramp+Bayer -&gt; buf.px ; cahaya -&gt; lit.glow
+    },
+    done: () =&gt; t &gt; life &amp;&amp; parts.length === 0,   // pemanggil membuang efek setelah done
+  };
+}
+</code></pre>
+<p>Urutan gambar per frame: partikel belakang → objek/sprite → bentuk utama → partikel depan → cincin → <code>lit.flush()</code> (cahaya paling akhir).</p>
+<h2>Partikel berekor (bukan lingkaran)</h2>
+<p>Hitung kecepatan <code>sp</code>, arah <code>(ux, uy) = v/sp</code>, panjang <code>L = min(maks, 1 + sp·k)</code>. Gambar dua segmen: ekor lebih gelap (<code>warna × 0.55</code>) lalu kepala terang. Di akhir umur (<code>life/max &lt; 0.35</code>) hilangkan piksel dengan Bayer: <code>if (bayer(x,y) &gt; k/0.35) skip</code> — memudar tanpa alpha.</p>
+<h2>Reaktif: efek yang &quot;makan&quot; input</h2>
+<p>Efek hidup terasa nyata bila bereaksi. Pola <code>feed(jumlah)</code>: tiap benda yang diserap menambah <code>flare</code> (kecerahan sementara), <code>gulp</code> (radius berdenyut), <code>grow</code> (ukuran permanen kecil); semuanya meluruh eksponensial: <code>flare -= flare·3·dt</code>. Satu fungsi <code>feed</code> dipanggil dari partikel yang termakan, dari serpihan tanah, dan dari tembakan pemain — seluruh reaksi visual tinggal di satu tempat. Contoh lengkap di <a href="black-hole.html">black hole</a>.</p>
+<h2>Game feel</h2>
+<ul>
+<li><strong>Guncangan</strong>: <code>trauma</code> 0..1 yang ditambah saat event dan meluruh; offset = <code>trauma²·amplitudo·noise</code>. Efek kecil → <code>0.006–0.1</code>, ledakan besar → <code>0.35–0.6</code>.</li>
+<li><strong>Kilat layar</strong>: overlay warna alpha 0.7 meluruh 0.1–0.2 dtk saat momen puncak.</li>
+<li><strong>Riak/lensa</strong>: distorsi lokal (lihat lensa di <a href="black-hole.html">black hole</a>).</li>
+<li>Puncak efek selalu didahului <strong>antisipasi</strong> singkat (partikel tersedot, cincin menyempit) lalu <strong>dampak</strong>.</li>
+</ul>
+<h2>Performa</h2>
+<ul>
+<li>Loop piksel hanya di <strong>kotak pembatas</strong> efek (<code>radius·rout</code>), bukan seluruh layar.</li>
+<li>Buffer <code>Uint32</code> + satu <code>putImageData</code> (<a href="pixel-buffer.html">buffer piksel</a>); jangan <code>fillRect</code> per piksel pada efek besar.</li>
+<li>Batasi partikel (mis. ≤ 300), hapus dengan iterasi mundur.</li>
+<li><code>PX.loop</code> menghentikan animasi saat di luar layar; RNG ber-seed membuat efek bisa direproduksi.</li>
+</ul>
+<h2>Peta efek → bahan</h2>
+<table>
+<thead>
+<tr>
+<th>Efek</th>
+<th>Bentuk</th>
+<th>Partikel</th>
+<th>Cahaya</th>
+<th>Artikel</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pulsar</td>
+<td>bola ber-noise + 2 sinar + garis dipol</td>
+<td>—</td>
+<td>opsional</td>
+<td><a href="neutron-psr.html">neutron &amp; pulsar</a></td>
+</tr>
+<tr>
+<td>Black hole</td>
+<td>elips cakram + halo + lensa</td>
+<td>serpihan jatuh berputar</td>
+<td>glow oranye</td>
+<td><a href="black-hole.html">black hole</a></td>
+</tr>
+<tr>
+<td>Ledakan</td>
+<td>cincin + puff disc</td>
+<td>percikan</td>
+<td>kilat + glow</td>
+<td><a href="explosion.html">ledakan</a></td>
+</tr>
+<tr>
+<td>Api</td>
+<td>disc membesar saat menua</td>
+<td>asap</td>
+<td>additive</td>
+<td><a href="fire.html">api</a></td>
+</tr>
+<tr>
+<td>Hujan</td>
+<td>garis jatuh 3 lapis</td>
+<td>percikan</td>
+<td>—</td>
+<td><a href="rain.html">hujan</a></td>
+</tr>
+<tr>
+<td>Tekstur material</td>
+<td>height + ramp</td>
+<td>—</td>
+<td>—</td>
+<td><a href="pixel-texturing.html">texturing</a></td>
+</tr>
+</tbody></table>
+<h2>Prosedur untuk AI saat diminta efek baru</h2>
+<ol>
+<li>Tuliskan 3–5 fase dan durasinya. 2. Pilih 1–2 bentuk dari tabel. 3. Pilih ramp (hue bergeser) dan warna aksen. 4. Tulis <code>update</code> (partikel, fase) lalu <code>draw</code> (bentuk, partikel, cahaya). 5. Tambah <code>feed</code>/reaksi jika efek berinteraksi. 6. Tambah satu guncangan dan satu kilat di puncak. 7. Render beberapa frame ke PNG dan <strong>lihat</strong> hasilnya diperbesar, sebelum menyetel angka.</li>
+</ol>
+
+<nav class="pn"><a href="parallax.html">← Parallax berlapis — kedalaman dari faktor kecepatan</a><a href="tracer-muzzle.html">Tracer peluru, muzzle flash, dan percikan tumbukan →</a></nav>
+</article></main>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p></footer>
+</div>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>

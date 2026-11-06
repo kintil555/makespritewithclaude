@@ -38,7 +38,7 @@ Minta hasil dalam urutan: (1) skema koordinat atlas, (2) kode implementasi bersi
 1. Tentukan spesifikasi (template di atas).
 2. Buat **rig** halus (tulang/IK atau persamaan bentuk) — [stickman IK](hires-to-pixel.html) atau [karakter dari persamaan](procedural-character.html).
 3. Turunkan ke piksel dengan `PX.pixelize` / pemetaan per-piksel.
-4. Tambah efek dari katalog: [tracer](tracer-muzzle.html), [ledakan](explosion.html), [lubang](crater-hole.html), [api](fire.html), [neutron/pulsar](neutron-psr.html).
+4. Tambah efek dari katalog: [tracer](tracer-muzzle.html), [ledakan](explosion.html), [lubang](crater-hole.html), [api](fire.html), [neutron/pulsar](neutron-psr.html), [black hole](black-hole.html). Efek baru? Ikuti [resep VFX](vfx-recipe.html). Material/ubin? Ikuti [texturing](pixel-texturing.html).
 5. Bake atlas ([sprite sheet](sprite-sheet.html)) dan uji di latar gelap.
 6. Periksa checklist.
 
