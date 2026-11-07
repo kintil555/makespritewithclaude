@@ -118,5 +118,6 @@ PX.demos.wizard = (host) => {
     c.putImageData(img, 0, 0);
   };
 
+  step();                                                                                           // inisialisasi jangkar & rantai sebelum draw pertama (dt frame pertama bisa < 1/60 s)
   PX.loop(host, (dt, t) => { acc += dt; while (acc >= h) { step(); acc -= h; } draw(t); });
 };
