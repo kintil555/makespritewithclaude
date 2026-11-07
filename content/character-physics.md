@@ -45,14 +45,23 @@ e = |p − (A + (B−A)·t)| / (rA + (rB−rA)·t);   // jarak dibagi radius lok
 
 Ambil `e` terkecil dari semua ruas. Dari satu kueri itu didapat semua shading:
 
-- `e > 0.8` → warna tepi (shade), memberi volume dan outline lembut.
+- `e > 0.78` → warna tepi (shade), memberi volume.
 - `cs = i + t` (posisi di sepanjang rantai) → **list emas** di jubah (`cs` pada rentang sempit di dekat ujung) dan **band** di topi.
-- `cl` = `e` dengan **tanda sisi** (`sign(cross)`) → **lipatan kain**: `|sin(cl·3.2 + cs·0.35)| > 0.86` → garis gelap yang ikut melengkung saat rantai melengkung.
-- Sorot cahaya: sisi `cl < −0.35` pada topi; `e < 0.4` di bagian atas jubah.
+- `cl` = `e` dengan **tanda sisi** (`sign(cross)`) → sorot cahaya: `cl < −0.3` = sisi terang (di jubah hanya `cs < 5`, bagian atas).
+- **Cukup 3 tone per material** (dasar, gelap, terang). Jangan menambah garis lipatan, noise, atau dither: pada sprite sekecil ini semuanya terbaca sebagai kotor.
 
 Radius jubah `2 → 7.5` (melebar ke ujung), radius topi `7 → 0.6` (runcing). Bentuk kain lahir dari kurva radius itu, bukan dari gambar.
 
-**Urutan lapisan** (belakang ke depan): tanah → **jubah** → baju → sepatu → lengan → kepala → wajah → jenggot → **kerucut topi** → brim. Kerucut topi dipotong di garis brim (`y ≤ jangkarTopi.y + 1`) agar alasnya yang bulat tidak menutupi wajah; brim digambar terakhir sebagai elips pipih.
+**Urutan lapisan** (belakang ke depan): bayangan kontak → **jubah** → baju → sepatu → lengan → kepala → wajah → jenggot → **kerucut topi** → brim. Kerucut topi dipotong di garis brim (`y ≤ jangkarTopi.y + 1`) agar alasnya yang bulat tidak menutupi wajah; brim digambar terakhir sebagai elips pipih.
+
+## Gaya sprite game: besar, bersih, tegas
+Hasil awal terlalu "ramai" (piksel rapat, garis lipatan, bintang). Gaya game yang bagus justru **lebih sedikit detail**:
+
+- **Resolusi rendah**: kanvas 80×52 (≈8 px layar per piksel); sprite ±35 piksel tinggi. Simulasi dan bentuk tetap di koordinat desain 112×72; tiap piksel kanvas mengambil sampel di `((x+.5)/S, (y+.5)/S)` dengan `S = 80/112`. Mengganti `S` = mengganti kerapatan piksel tanpa menyentuh physics.
+- **Bentuk besar dan terbaca**: kepala, topi, badan = massa jelas; fitur wajah cukup 1 piksel (satu mata profil). Fitur lebih kecil dari 1 piksel kanvas akan hilang/berkedip saat sampling, jadi buat selebar ≥ 1.4 satuan desain (`1/S`).
+- **Outline 1 piksel gelap berwarna** (`#120d24`, bukan hitam murni) dari siluet.
+- **Bayangan jatuh**: piksel kosong yang tepat di kanan-bawah piksel sprite/outline diwarnai hitam 30% (`rgba(0,0,0,.31)`). Ini memberi kedalaman murah dan membuat siluet menonjol di latar abu-abu.
+- **Latar polos**, tanpa bintang atau tanah bertekstur; cukup bayangan kontak elips di kaki.
 
 ## Menggerakkan karakternya
 - **Jalan ke target** dengan pegas teredam kritis: `v += ((target − x)·6 − v·3.2)·dt`. Berhenti halus, tanpa overshoot, kecepatan dibatasi.
@@ -69,7 +78,7 @@ Radius jubah `2 → 7.5` (melebar ke ujung), radius topi `7 → 0.6` (runcing). 
 - Tambah bagian lemas lain dengan resep yang sama: jenggot/rambut = rantai Verlet pendek, syal = Verlet, bulu/ekor = pegas-ke-pose.
 
 ## Prompt untuk AI
-> Gambar penyihir pixel 112×72 per-piksel (query bentuk, bukan sprite manual). Jubah = rantai Verlet 9 titik (jangkar di leher, gravitasi, angin, pegas lembut ke belakang, batasan jarak 5 iterasi, lantai), dirender sebagai kapsul meruncing dengan shading dari `e`, posisi rantai, dan sisi. Pucuk topi = rantai 5 titik yang ditarik pegas ke pose melengkung, redaman 0.965 agar memantul. Physics berjalan di langkah tetap 1/60 s. Karakter berjalan ke arah mouse dengan pegas teredam kritis dan condong ke arah gerak.
+> Gambar penyihir pixel 80×52 per-piksel (query bentuk, bukan sprite manual), gaya game: 3 tone per material, outline 1 piksel, bayangan jatuh kanan-bawah, tanpa tekstur. Jubah = rantai Verlet 9 titik (jangkar di leher, gravitasi, angin, pegas lembut ke belakang, batasan jarak 5 iterasi, lantai), dirender sebagai kapsul meruncing dengan shading dari `e`, posisi rantai, dan sisi. Pucuk topi = rantai 5 titik yang ditarik pegas ke pose melengkung, redaman 0.965 agar memantul. Physics berjalan di langkah tetap 1/60 s. Karakter berjalan ke arah mouse dengan pegas teredam kritis dan condong ke arah gerak.
 
 {{demo:wizard}}
 

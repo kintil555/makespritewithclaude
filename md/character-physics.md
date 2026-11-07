@@ -45,14 +45,23 @@ e = |p − (A + (B−A)·t)| / (rA + (rB−rA)·t);   // jarak dibagi radius lok
 
 Ambil `e` terkecil dari semua ruas. Dari satu kueri itu didapat semua shading:
 
-- `e > 0.8` → warna tepi (shade), memberi volume dan outline lembut.
+- `e > 0.78` → warna tepi (shade), memberi volume.
 - `cs = i + t` (posisi di sepanjang rantai) → **list emas** di jubah (`cs` pada rentang sempit di dekat ujung) dan **band** di topi.
-- `cl` = `e` dengan **tanda sisi** (`sign(cross)`) → **lipatan kain**: `|sin(cl·3.2 + cs·0.35)| > 0.86` → garis gelap yang ikut melengkung saat rantai melengkung.
-- Sorot cahaya: sisi `cl < −0.35` pada topi; `e < 0.4` di bagian atas jubah.
+- `cl` = `e` dengan **tanda sisi** (`sign(cross)`) → sorot cahaya: `cl < −0.3` = sisi terang (di jubah hanya `cs < 5`, bagian atas).
+- **Cukup 3 tone per material** (dasar, gelap, terang). Jangan menambah garis lipatan, noise, atau dither: pada sprite sekecil ini semuanya terbaca sebagai kotor.
 
 Radius jubah `2 → 7.5` (melebar ke ujung), radius topi `7 → 0.6` (runcing). Bentuk kain lahir dari kurva radius itu, bukan dari gambar.
 
-**Urutan lapisan** (belakang ke depan): tanah → **jubah** → baju → sepatu → lengan → kepala → wajah → jenggot → **kerucut topi** → brim. Kerucut topi dipotong di garis brim (`y ≤ jangkarTopi.y + 1`) agar alasnya yang bulat tidak menutupi wajah; brim digambar terakhir sebagai elips pipih.
+**Urutan lapisan** (belakang ke depan): bayangan kontak → **jubah** → baju → sepatu → lengan → kepala → wajah → jenggot → **kerucut topi** → brim. Kerucut topi dipotong di garis brim (`y ≤ jangkarTopi.y + 1`) agar alasnya yang bulat tidak menutupi wajah; brim digambar terakhir sebagai elips pipih.
+
+## Gaya sprite game: besar, bersih, tegas
+Hasil awal terlalu "ramai" (piksel rapat, garis lipatan, bintang). Gaya game yang bagus justru **lebih sedikit detail**:
+
+- **Resolusi rendah**: kanvas 80×52 (≈8 px layar per piksel); sprite ±35 piksel tinggi. Simulasi dan bentuk tetap di koordinat desain 112×72; tiap piksel kanvas mengambil sampel di `((x+.5)/S, (y+.5)/S)` dengan `S = 80/112`. Mengganti `S` = mengganti kerapatan piksel tanpa menyentuh physics.
+- **Bentuk besar dan terbaca**: kepala, topi, badan = massa jelas; fitur wajah cukup 1 piksel (satu mata profil). Fitur lebih kecil dari 1 piksel kanvas akan hilang/berkedip saat sampling, jadi buat selebar ≥ 1.4 satuan desain (`1/S`).
+- **Outline 1 piksel gelap berwarna** (`#120d24`, bukan hitam murni) dari siluet.
+- **Bayangan jatuh**: piksel kosong yang tepat di kanan-bawah piksel sprite/outline diwarnai hitam 30% (`rgba(0,0,0,.31)`). Ini memberi kedalaman murah dan membuat siluet menonjol di latar abu-abu.
+- **Latar polos**, tanpa bintang atau tanah bertekstur; cukup bayangan kontak elips di kaki.
 
 ## Menggerakkan karakternya
 - **Jalan ke target** dengan pegas teredam kritis: `v += ((target − x)·6 − v·3.2)·dt`. Berhenti halus, tanpa overshoot, kecepatan dibatasi.
@@ -69,7 +78,7 @@ Radius jubah `2 → 7.5` (melebar ke ujung), radius topi `7 → 0.6` (runcing). 
 - Tambah bagian lemas lain dengan resep yang sama: jenggot/rambut = rantai Verlet pendek, syal = Verlet, bulu/ekor = pegas-ke-pose.
 
 ## Prompt untuk AI
-> Gambar penyihir pixel 112×72 per-piksel (query bentuk, bukan sprite manual). Jubah = rantai Verlet 9 titik (jangkar di leher, gravitasi, angin, pegas lembut ke belakang, batasan jarak 5 iterasi, lantai), dirender sebagai kapsul meruncing dengan shading dari `e`, posisi rantai, dan sisi. Pucuk topi = rantai 5 titik yang ditarik pegas ke pose melengkung, redaman 0.965 agar memantul. Physics berjalan di langkah tetap 1/60 s. Karakter berjalan ke arah mouse dengan pegas teredam kritis dan condong ke arah gerak.
+> Gambar penyihir pixel 80×52 per-piksel (query bentuk, bukan sprite manual), gaya game: 3 tone per material, outline 1 piksel, bayangan jatuh kanan-bawah, tanpa tekstur. Jubah = rantai Verlet 9 titik (jangkar di leher, gravitasi, angin, pegas lembut ke belakang, batasan jarak 5 iterasi, lantai), dirender sebagai kapsul meruncing dengan shading dari `e`, posisi rantai, dan sisi. Pucuk topi = rantai 5 titik yang ditarik pegas ke pose melengkung, redaman 0.965 agar memantul. Physics berjalan di langkah tetap 1/60 s. Karakter berjalan ke arah mouse dengan pegas teredam kritis dan condong ke arah gerak.
 
 > **Demo interaktif "wizard"**: buka halaman web artikel ini untuk menjalankannya. Kodenya ada di bawah.
 
@@ -81,22 +90,25 @@ Gerakkan mouse untuk menyuruh penyihir berjalan. Geser **Angin** dan **Pucuk top
 
 ```js
 // Penyihir prosedural dengan physics: JUBAH = rantai Verlet (9 titik, dirender sebagai kapsul meruncing), PUCUK TOPI = rantai pegas ke pose istirahat (memantul).
-// Semua digambar per-piksel (query bentuk), physics jalan di langkah tetap 1/60 s agar stabil. Gerakkan mouse: penyihir berjalan ke sana, jubah menjuntai, pucuk topi bergoyang.
+// Gaya game: piksel besar (kanvas 80x52), 3 tone per material, outline gelap 1 px, bayangan jatuh abu-abu di kanan-bawah. Tanpa tekstur, tanpa dither.
+// Simulasi & bentuk memakai koordinat desain 112x72 (DW x DH); tiap piksel kanvas mengambil sampel di (x+.5)/S. Physics jalan di langkah tetap 1/60 s.
 PX.demos.wizard = (host) => {
-  const W = 112, H = 72, GY = 63, cv = PX.canvas(host, W, H, 640, false, 'Penyihir — jubah dan pucuk topi ber-physics'), c = cv.getContext('2d'), img = c.createImageData(W, H), p = PX.pointer(cv), ui = PX.ui(host);
-  cv.style.background = '#14102a';
+  const DW = 112, GY = 63, W = 80, H = 52, S = W / DW;
+  const cv = PX.canvas(host, W, H, 640, false, 'Penyihir — jubah dan pucuk topi ber-physics'), c = cv.getContext('2d'), img = c.createImageData(W, H), p = PX.pointer(cv), ui = PX.ui(host);
+  cv.style.background = '#3a3a3a';
   let wind = 0.35, floppy = 0.5, gust = 0;
   ui.range('Angin', 0, 1, 0.01, wind, (v) => (wind = v));
   ui.range('Pucuk topi lemas', 0, 1, 0.01, floppy, (v) => (floppy = v));
   ui.button('Hembusan', () => (gust = 1));
-  const PAL = ['#00000000', '#120d24', '#6a3fb5', '#4a2a85', '#8f68e0', '#ffd166', '#3a56c8', '#26398f', '#6f8cf5', '#ffd0b8', '#e0a58a', '#eef1ff', '#aab4e0', '#2b3a8a', '#1c2566', '#4b5cc0', '#ffd166', '#1c1530', '#2a2050', '#0e0a20', '#cfd6ff', '#3a2d6b'].map((h) => (h.length > 7 ? [0, 0, 0, 0] : [...PX.hex(h), 255]));
-  const [E, OL, CAPE, CAPES, CAPEL, TRIM, ROBE, ROBES, ROBEL, SKIN, SKINS, BEARD, BEARDS, HAT, HATS, HATL, BAND, EYE, GROUND, SHAD, STAR, GRL] = PAL.map((_, i) => i);
+  const HEX = ['#00000000', '#120d24', '#6a3fb5', '#4a2a85', '#8f68e0', '#ffd166', '#3a56c8', '#26398f', '#6f8cf5', '#ffd0b8', '#e0a58a', '#eef1ff', '#aab4e0', '#2b3a8a', '#1c2566', '#4b5cc0', '#ffd166', '#1c1530'];
+  const PAL = [...HEX.map((h) => (h.length > 7 ? [0, 0, 0, 0] : [...PX.hex(h), 255])), [0, 0, 0, 80]];   // indeks terakhir = bayangan (setengah transparan)
+  const [E, OL, CAPE, CAPES, CAPEL, TRIM, ROBE, ROBES, ROBEL, SKIN, SKINS, BEARD, BEARDS, HAT, HATS, HATL, BAND, EYE, SH] = PAL.map((_, i) => i);
   const NC = 9, SL = 3.7, NH = 5, HL = 4.4, h = 1 / 60;                                            // NC titik jubah (jarak SL), NH titik topi (jarak HL)
   const CR = Array.from({ length: NC }, (_, i) => 2 + 5.5 * Math.pow(i / (NC - 1), 1.15));          // radius jubah: sempit di leher, melebar di ujung
   const HR = Array.from({ length: NH }, (_, i) => 0.6 + 6.4 * (1 - i / (NH - 1)));                  // radius topi: lebar di dasar, runcing di pucuk
   const cx = new Float32Array(NC), cy = new Float32Array(NC), cpx = new Float32Array(NC), cpy = new Float32Array(NC);   // jubah: posisi & posisi sebelumnya (Verlet)
   const hx = new Float32Array(NH), hy = new Float32Array(NH), hpx = new Float32Array(NH), hpy = new Float32Array(NH), tx_ = new Float32Array(NH), ty_ = new Float32Array(NH);
-  let ox = W / 2, vx = 0, dir = 1, phase = 0, bob = 0, lean = 0, acc = 0, ts = 0, inited = false, mv = 0;
+  let ox = DW / 2, vx = 0, dir = 1, phase = 0, bob = 0, lean = 0, acc = 0, ts = 0, inited = false, mv = 0;
   let CA, HA;                                                                                      // jangkar: belakang leher (jubah) & atas kepala (topi)
   const hdY = () => GY - 35 - bob;                                                                  // pusat kepala
 
@@ -112,7 +124,7 @@ PX.demos.wizard = (host) => {
   };
   const step = () => {
     ts += h; const t = ts;
-    const tgt = p.in ? PX.clamp(p.x, 14, W - 14) : W / 2 + Math.sin(t * 0.55) * 34;                // target jalan: mouse, atau patroli otomatis
+    const tgt = p.in ? PX.clamp(p.x / S, 14, DW - 14) : DW / 2 + Math.sin(t * 0.55) * 34;           // target jalan: mouse, atau patroli otomatis
     vx = PX.clamp(vx + ((tgt - ox) * 6 - vx * 3.2) * h, -46, 46); ox += vx * h;                      // pegas teredam kritis -> berhenti halus
     if (Math.abs(vx) > 4) dir = vx > 0 ? 1 : -1;
     mv = Math.min(1, Math.abs(vx) / 20); phase += Math.abs(vx) * h * Math.PI / 8;
@@ -140,7 +152,7 @@ PX.demos.wizard = (host) => {
     solve(hx, hy, NH, HL, 3);
   };
 
-  let cs = 0, cl = 0;                                                                               // hasil kueri rantai: indeks+t sepanjang rantai, posisi lateral bertanda (-1..1)
+  let cs = 0, cl = 0;                                                                               // hasil kueri rantai: posisi sepanjang rantai (indeks+t), sisi bertanda
   const chain = (x, y, X, Y, R, n) => {                                                             // kapsul meruncing berantai: jarak ke tulang punggung / radius lokal
     let best = 9;
     for (let i = 0; i < n - 1; i++) {
@@ -156,47 +168,51 @@ PX.demos.wizard = (host) => {
     const idx = new Uint8Array(W * H), hcY = hdY(), hcX = ox + lean + dir * 0.6, nkY = GY - 29 - bob, blink = (t % 3.2) < 0.12;
     const sh = [ox + lean * 0.9 + dir * 0.5, GY - 26 - bob], sw = Math.sin(phase) * mv * 3.5 + 0.4 * Math.sin(t * 2), hand = [sh[0] + dir * (1.2 + sw), sh[1] + 10.5];
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const px = x + 0.5, py = y + 0.5; let v = E;
-      if (py > GY) v = ((px - ox) / 13) ** 2 + ((py - GY - 2) / 2.2) ** 2 <= 1 ? SHAD : py < GY + 1.5 ? GRL : GROUND;     // tanah + bayangan
-      else if (PX.hash(x, y, 91) > 0.992) v = STAR;                                                  // bintang latar (statis)
-      if (py <= GY + 0.5 && chain(px, py, cx, cy, CR, NC) <= 1) {                                    // jubah (paling belakang)
+      const px = (x + 0.5) / S, py = (y + 0.5) / S; let v = E;                                       // koordinat desain
+      if (((px - ox) / 13) ** 2 + ((py - GY - 0.5) / 2) ** 2 <= 1) v = SH;                           // bayangan kontak di tanah
+      if (py <= GY + 0.5 && chain(px, py, cx, cy, CR, NC) <= 1) {                                    // jubah (paling belakang): 3 tone + 1 list emas
         const e = chain(px, py, cx, cy, CR, NC);
-        v = e > 0.8 || Math.abs(Math.sin(cl * 3.2 + cs * 0.35)) > 0.86 ? CAPES : e < 0.4 && cs < 3.5 ? CAPEL : CAPE;
-        if (cs > NC - 2.35 && cs < NC - 1.9) v = TRIM;                                               // list emas dekat ujung
+        v = e > 0.78 ? CAPES : cl < -0.3 && cs < 5 ? CAPEL : CAPE;
+        if (cs > NC - 2.35 && cs < NC - 1.9) v = TRIM;
       }
-      const dxr = px - ox - lean * (1 - (GY - py) / 30), rw = 5 + (py - nkY) * 0.26;                // jubah baju (robe): condong ke arah gerak di atas, kaki tetap
+      const dxr = px - ox - lean * (1 - (GY - py) / 30), rw = 5 + (py - nkY) * 0.26;                // baju (robe): condong ke arah gerak di atas, kaki tetap
       if (py >= nkY && py <= GY - 2 && Math.abs(dxr) <= rw) {
-        v = Math.abs(dxr) / rw > 0.82 || py > GY - 4 ? ROBES : dxr < -rw * 0.4 ? ROBEL : ROBE;
-        if (py > GY - 17 && py < GY - 15.5) v = BAND;                                               // sabuk
+        v = Math.abs(dxr) / rw > 0.78 ? ROBES : dxr < -rw * 0.45 ? ROBEL : ROBE;
+        if (py > GY - 17 && py < GY - 15) v = BAND;                                                 // sabuk
       }
       for (const s of [-1, 1]) {                                                                    // sepatu: kaki yang "melangkah" terangkat
         const lift = Math.max(0, Math.sin(phase + (s > 0 ? 0 : Math.PI))) * 2.2 * mv;
-        if (((px - ox - s * 3.6 - dir * 0.8) / 2.8) ** 2 + ((py - (GY - 1 - lift)) / 1.5) ** 2 <= 1) v = HATS;
+        if (((px - ox - s * 3.6 - dir * 0.8) / 3) ** 2 + ((py - (GY - 1 - lift)) / 1.7) ** 2 <= 1) v = HATS;
       }
-      const ae = seg(px, py, sh[0], sh[1], hand[0], hand[1]) / 1.9;                                  // lengan dekat (ayun saat jalan)
-      if (ae <= 1) v = ae > 0.62 ? ROBES : ROBEL;
-      if (Math.hypot(px - hand[0], py - hand[1]) <= 1.6) v = SKIN;
+      const ae = seg(px, py, sh[0], sh[1], hand[0], hand[1]) / 2;                                    // lengan dekat (ayun saat jalan)
+      if (ae <= 1) v = ae > 0.6 ? ROBES : ROBEL;
+      if (Math.hypot(px - hand[0], py - hand[1]) <= 1.9) v = SKIN;
       const hd = Math.hypot(px - hcX, py - hcY), fx = (px - hcX) * dir;                              // kepala
-      if (hd <= 6 || (fx >= 5.4 && fx < 7 && py >= hcY + 1.5 && py < hcY + 3.5)) v = hd > 4.8 ? SKINS : SKIN;
-      if (!blink && py >= hcY + 0.5 && py < hcY + 2.5 && ((fx >= 1 && fx < 2) || (fx >= 3.6 && fx < 4.6))) v = EYE;
-      const db = py - (hcY + 2.5);                                                                  // jenggot: bergoyang tertinggal oleh kecepatan
-      if (db >= 0 && db <= 11) {
-        const half = 5.2 * Math.pow(1 - db / 12, 0.7), ex = px - (hcX + dir * 0.5 - PX.clamp(vx * 0.03, -1.5, 1.5) * (db / 11));
-        if (Math.abs(ex) <= half) v = Math.abs(ex) > half - 1.2 || db > 9 ? BEARDS : BEARD;
+      if (hd <= 6.2 || (fx >= 5.4 && fx < 7.4 && py >= hcY + 1.2 && py < hcY + 3.8)) v = hd > 5 ? SKINS : SKIN;
+      if (!blink && py >= hcY + 0.7 && py < hcY + 3.1 && fx >= 1.6 && fx < 3.6) v = EYE;            // satu mata besar (profil), 1 piksel, di bawah brim
+      const db = py - (hcY + 3.3);                                                                 // jenggot: bergoyang tertinggal oleh kecepatan
+      if (db >= 0 && db <= 10) {
+        const half = 5 * Math.pow(1 - db / 11, 0.7), ex = px - (hcX + dir * 0.5 - PX.clamp(vx * 0.03, -1.5, 1.5) * (db / 10));
+        if (Math.abs(ex) <= half) v = ex * dir > half - 1.6 ? BEARDS : BEARD;
       }
       if (py <= HA[1] + 1 && chain(px, py, hx, hy, HR, NH) <= 1) {                                   // kerucut topi (di atas brim saja)
         const e = chain(px, py, hx, hy, HR, NH);
-        v = e > 0.75 ? HATS : cl < -0.35 ? HATL : HAT;
-        if (cs > 0.25 && cs < 0.85) v = BAND;
+        v = e > 0.72 ? HATS : cl < -0.3 ? HATL : HAT;
+        if (cs > 0.25 && cs < 0.95) v = BAND;
       }
-      if (((px - HA[0]) / 10) ** 2 + ((py - HA[1] - 1.2) / 2.3) ** 2 <= 1) v = py < HA[1] + 1.2 ? HAT : HATS;   // brim
+      if (((px - HA[0]) / 10.5) ** 2 + ((py - HA[1] - 1.2) / 2.5) ** 2 <= 1) v = py < HA[1] + 1.2 ? HAT : HATS;   // brim
       idx[y * W + x] = v;
     }
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {                                       // outline 1 piksel dari siluet sprite (indeks 1..17)
-      const i = y * W + x, sp = (j) => idx[j] > 0 && idx[j] < GROUND; let v = idx[i];
-      if (!sp(i) && ((x > 0 && sp(i - 1)) || (x < W - 1 && sp(i + 1)) || (y > 0 && sp(i - W)) || (y < H - 1 && sp(i + W)))) v = OL;
-      img.data.set(v === STAR ? (PX.hash(x, y, 92 + (Math.floor(t * 2) % 3)) > 0.4 ? PAL[STAR] : PAL[E]) : PAL[v], i * 4);
+    const sp = (a, j) => a[j] > 0 && a[j] < SH, out = new Uint8Array(W * H);                        // sprite = indeks 1..SH-1
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {                                       // outline 1 piksel dari siluet
+      const i = y * W + x; let v = idx[i];
+      if (!sp(idx, i) && ((x > 0 && sp(idx, i - 1)) || (x < W - 1 && sp(idx, i + 1)) || (y > 0 && sp(idx, i - W)) || (y < H - 1 && sp(idx, i + W)))) v = OL;
+      out[i] = v;
     }
+    for (let y = 1; y < H; y++) for (let x = 1; x < W; x++) {                                       // bayangan jatuh: 1 piksel ke kanan-bawah dari siluet (outline termasuk)
+      const i = y * W + x; if (out[i] === E && sp(out, i - W - 1)) out[i] = SH;
+    }
+    for (let i = 0; i < W * H; i++) img.data.set(PAL[out[i]], i * 4);
     c.putImageData(img, 0, 0);
   };
 
