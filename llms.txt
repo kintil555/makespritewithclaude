@@ -31,6 +31,7 @@ Catatan: kode di situs ini adalah JavaScript murni tanpa dependensi, berjalan di
 ## Karakter Prosedural
 
 - [Karakter prosedural dari persamaan](https://makespritewithclaude.pages.dev/md/procedural-character.md): Setiap piksel menanyakan koordinat lokal badan; bentuk berasal dari persamaan elips/kapsul, wajah dari bitmap string, outline dari siluet.
+- [Physics untuk karakter prosedural — jubah dan topi sihir](https://makespritewithclaude.pages.dev/md/character-physics.md): Rantai Verlet untuk jubah dan pegas-ke-pose untuk pucuk topi; physics hanya menghasilkan titik, bentuknya tetap digambar per-piksel sebagai kapsul meruncing.
 
 ## Panduan untuk AI
 

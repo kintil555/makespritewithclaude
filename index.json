@@ -246,6 +246,17 @@
       "code": [
         "https://makespritewithclaude.pages.dev/src/code/46-demo-char.js"
       ]
+    },
+    {
+      "slug": "character-physics",
+      "title": "Physics untuk karakter prosedural — jubah dan topi sihir",
+      "category": "karakter",
+      "summary": "Rantai Verlet untuk jubah dan pegas-ke-pose untuk pucuk topi; physics hanya menghasilkan titik, bentuknya tetap digambar per-piksel sebagai kapsul meruncing.",
+      "html": "https://makespritewithclaude.pages.dev/articles/character-physics.html",
+      "markdown": "https://makespritewithclaude.pages.dev/md/character-physics.md",
+      "code": [
+        "https://makespritewithclaude.pages.dev/src/code/54-demo-wizard.js"
+      ]
     }
   ]
 }

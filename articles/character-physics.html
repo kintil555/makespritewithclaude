@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Physics untuk karakter prosedural — jubah dan topi sihir — Make Sprite With Claude</title>
+<meta name="description" content="Rantai Verlet untuk jubah dan pegas-ke-pose untuk pucuk topi; physics hanya menghasilkan titik, bentuknya tetap digambar per-piksel sebagai kapsul meruncing.">
+<link rel="canonical" href="https://makespritewithclaude.pages.dev/articles/character-physics.html">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="icon" href="../favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png"><link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="alternate" type="text/plain" href="https://makespritewithclaude.pages.dev/llms.txt" title="llms.txt">
+<link rel="alternate" type="text/markdown" href="https://makespritewithclaude.pages.dev/md/character-physics.md" title="Markdown">
+<meta property="og:title" content="Physics untuk karakter prosedural — jubah dan topi sihir — Make Sprite With Claude"><meta property="og:description" content="Rantai Verlet untuk jubah dan pegas-ke-pose untuk pucuk topi; physics hanya menghasilkan titik, bentuknya tetap digambar per-piksel sebagai kapsul meruncing."><meta property="og:type" content="article">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"Physics untuk karakter prosedural — jubah dan topi sihir","description":"Rantai Verlet untuk jubah dan pegas-ke-pose untuk pucuk topi; physics hanya menghasilkan titik, bentuknya tetap digambar per-piksel sebagai kapsul meruncing.","inLanguage":"id","url":"https://makespritewithclaude.pages.dev/articles/character-physics.html","articleSection":"Karakter Prosedural","author":{"@type":"Person","name":"kintil555"}}</script>
+</head>
+<body>
+<header class="top"><a class="brand" href="../index.html"><img class="logo" src="../favicon-32.png" width="32" height="32" alt="" aria-hidden="true">Make Sprite With Claude</a></header>
+<div class="shell">
+<div class="layout"><aside class="side" aria-label="Kategori dan info">
+<p class="sh"><a href="../index.html#rendering">Teknik Rendering</a></p><a class="sb" href="../articles/hires-to-pixel.html">Render halus lalu turunkan ke grid piksel</a><a class="sb" href="../articles/dither-palette.html">Palet terbatas dan ordered dithering</a><a class="sb" href="../articles/pixel-buffer.html">Buffer piksel Uint32 dan aturan integer</a><a class="sb" href="../articles/sprite-sheet.html">Sprite sheet</a><a class="sb" href="../articles/sprite-composite.html">Komposit sprite bertahap</a><a class="sb" href="../articles/pixel-texturing.html">Texturing pixel art prosedural</a><a class="sb" href="../articles/water-texturing.html">Texturing air piksel</a><a class="sb" href="../articles/parallax.html">Parallax berlapis</a>
+<p class="sh"><a href="../index.html#efek">Efek (VFX)</a></p><a class="sb" href="../articles/vfx-recipe.html">Resep VFX prosedural</a><a class="sb" href="../articles/tracer-muzzle.html">Tracer peluru, muzzle flash, dan percikan tumbukan</a><a class="sb" href="../articles/glow.html">Glow</a><a class="sb" href="../articles/fluid-system.html">Sistem fluida piksel</a><a class="sb" href="../articles/explosion.html">Ledakan prosedural</a><a class="sb" href="../articles/crater-hole.html">Lubang, kawah, dan kerusakan per elemen</a><a class="sb" href="../articles/fire.html">Api dan asap dari partikel disc berlapis</a><a class="sb" href="../articles/rain.html">Hujan prosedural 3 lapis kedalaman</a><a class="sb" href="../articles/neutron-psr.html">Bola neutron dan pulsar (PSR)</a><a class="sb" href="../articles/black-hole.html">Black hole prosedural</a>
+<p class="sh"><a href="../index.html#karakter">Karakter Prosedural</a></p><a class="sb" href="../articles/procedural-character.html">Karakter prosedural dari persamaan</a><a class="sb on" href="../articles/character-physics.html" aria-current="page">Physics untuk karakter prosedural</a>
+<p class="sh"><a href="../index.html#ai">Panduan untuk AI</a></p><a class="sb" href="../articles/ai-prompt-playbook.html">Panduan prompt untuk AI</a>
+<p class="sh">Info</p>
+<a class="sb" href="../index.html">Beranda</a><a class="sb" href="../index.html#ai">Untuk AI &amp; agen</a><a class="sb" href="../llms.txt">llms.txt</a><a class="sb" href="../llms-full.txt">llms-full.txt</a><a class="sb" href="../index.json">index.json</a><a class="sb" href="../sitemap.xml">sitemap.xml</a><a class="sb" href="https://github.com/kintil555/makespritewithclaude">GitHub</a>
+</aside><main><article>
+<p class="crumb"><a href="../index.html#karakter">Karakter Prosedural</a></p>
+<h1>Physics untuk karakter prosedural — jubah dan topi sihir</h1><p class="lead">Rantai Verlet untuk jubah dan pegas-ke-pose untuk pucuk topi; physics hanya menghasilkan titik, bentuknya tetap digambar per-piksel sebagai kapsul meruncing.</p>
+<p class="meta">Versi mentah untuk AI: <a href="../md/character-physics.md">md/character-physics.md</a></p>
+<h2>Prinsip: physics menghasilkan titik, bukan piksel</h2>
+<p>Karakter dari <a href="procedural-character.html">artikel sebelumnya</a> digambar dengan <em>query per-piksel</em>. Physics tidak mengubah itu. Pisahkan dua tahap:</p>
+<ol>
+<li><strong>Simulasi</strong>: bagian lemas (jubah, pucuk topi, jenggot, rambut, syal) diwakili <strong>rantai titik</strong> <code>(x, y)</code>. Fisika hanya menggeser titik-titik ini.</li>
+<li><strong>Render</strong>: tiap piksel menanyakan &quot;seberapa dekat aku ke rantai ini?&quot; memakai <strong>kapsul meruncing</strong> (radius berubah di sepanjang rantai). Bentuk, shading, dan outline tetap lewat indeks palet seperti biasa.</li>
+</ol>
+<p>Hasilnya tetap pixel art bersih (tanpa anti-alias), tapi gerakannya hidup. AI cukup menulis dua blok kecil: <code>step()</code> dan <code>draw()</code>.</p>
+<h2>Jubah: rantai Verlet</h2>
+<p>Jubah = 9 titik, titik 0 <strong>terkunci</strong> di belakang leher (jangkar yang ikut karakter). Tiap langkah untuk titik <code>i ≥ 1</code>:</p>
+<ul>
+<li><strong>Inersia (Verlet)</strong>: <code>v = (x − xPrev) · 0.985</code>; simpan <code>xPrev = x</code>; <code>x += v</code>. Tidak perlu menyimpan kecepatan, dan stabil.</li>
+<li><strong>Gravitasi</strong> ke bawah ≈ 260 px/s².</li>
+<li><strong>Angin</strong> ke samping, makin kuat ke ujung: <code>angin · 260 · (0.3 + 0.7·k)</code>, <code>k = i/(N−1)</code>. Angin = dua sinus berbeda frekuensi dikalikan agar terasa berhembus, bukan konstan. Hembusan sesaat = pulsa yang meluruh <code>gust *= exp(−dt·1.2)</code>.</li>
+<li><strong>Pegas lembut ke posisi istirahat</strong> &quot;menjuntai di belakang&quot;: <code>target = jangkar + (−arah·jarak·i·0.85, jarak·i·0.5)</code>, kekakuan kecil (≈10). Tanpa ini rantai jatuh lurus ke bawah dan tersembunyi di balik badan.</li>
+<li><strong>Batasan jarak</strong>: ulangi 5 kali, untuk tiap pasangan titik koreksi selisih panjang dari <code>SL</code> (titik 0 tidak bergerak, sisanya dibagi dua). Iterasi lebih banyak = kain lebih kaku.</li>
+<li><strong>Lantai</strong>: <code>y ≤ lantai − 1</code>, lalu samakan <code>yPrev = y</code> agar ujung jubah menyeret di tanah, bukan memantul.</li>
+</ul>
+<p>Karena jangkar ikut bergerak, jubah <strong>tertinggal otomatis</strong> saat karakter berjalan dan <strong>menyapu balik</strong> saat berhenti. Itu semua efek inersia, tanpa kode animasi khusus.</p>
+<h2>Pucuk topi: pegas ke pose, bukan rantai bebas</h2>
+<p>Rantai bebas yang hanya bergantung pada gravitasi akan layu. Pucuk topi harus <strong>kembali tegak lalu memantul</strong>. Caranya:</p>
+<ul>
+<li>Hitung <strong>pose istirahat</strong> tiap frame dari jangkar topi: titik demi titik, sudut bertambah (<code>a += 0.22</code>) sehingga pucuk melengkung ke belakang seperti topi penyihir klasik.</li>
+<li>Tiap titik <code>i ≥ 1</code> ditarik ke target pose-nya: <code>percepatan = (target − x)·ks + gravitasi</code>, dengan <code>ks ≈ 55–295</code>.</li>
+<li><strong>Redaman kecil</strong> (<code>0.965</code> per langkah 60 Hz) = <em>underdamped</em>, jadi pucuk berayun beberapa kali sebelum diam. Ini yang membuatnya &quot;mantul&quot;. Redaman besar (<code>0.9</code>) terasa seperti di dalam madu.</li>
+<li>Lalu batasan jarak 3 iterasi menjaga panjang tiap ruas.</li>
+<li>Satu slider cukup untuk karakter: &quot;lemas&quot; = <code>ks</code> turun dan gravitasi naik.</li>
+</ul>
+<p>Karena target bergantung pada jangkar, kepala yang menyentak atau berhenti mendadak langsung memberi pucuk <strong>dorongan awal</strong>; pegas yang mengurus sisanya.</p>
+<h2>Render: kapsul meruncing berantai</h2>
+<p>Untuk tiap ruas rantai <code>A→B</code> dengan radius <code>rA→rB</code>:</p>
+<pre><code class="language-js">t = clamp(dot(p−A, B−A) / |B−A|², 0, 1);      // titik terdekat di ruas
+e = |p − (A + (B−A)·t)| / (rA + (rB−rA)·t);   // jarak dibagi radius lokal; e ≤ 1 = di dalam
+</code></pre>
+<p>Ambil <code>e</code> terkecil dari semua ruas. Dari satu kueri itu didapat semua shading:</p>
+<ul>
+<li><code>e &gt; 0.8</code> → warna tepi (shade), memberi volume dan outline lembut.</li>
+<li><code>cs = i + t</code> (posisi di sepanjang rantai) → <strong>list emas</strong> di jubah (<code>cs</code> pada rentang sempit di dekat ujung) dan <strong>band</strong> di topi.</li>
+<li><code>cl</code> = <code>e</code> dengan <strong>tanda sisi</strong> (<code>sign(cross)</code>) → <strong>lipatan kain</strong>: <code>|sin(cl·3.2 + cs·0.35)| &gt; 0.86</code> → garis gelap yang ikut melengkung saat rantai melengkung.</li>
+<li>Sorot cahaya: sisi <code>cl &lt; −0.35</code> pada topi; <code>e &lt; 0.4</code> di bagian atas jubah.</li>
+</ul>
+<p>Radius jubah <code>2 → 7.5</code> (melebar ke ujung), radius topi <code>7 → 0.6</code> (runcing). Bentuk kain lahir dari kurva radius itu, bukan dari gambar.</p>
+<p><strong>Urutan lapisan</strong> (belakang ke depan): tanah → <strong>jubah</strong> → baju → sepatu → lengan → kepala → wajah → jenggot → <strong>kerucut topi</strong> → brim. Kerucut topi dipotong di garis brim (<code>y ≤ jangkarTopi.y + 1</code>) agar alasnya yang bulat tidak menutupi wajah; brim digambar terakhir sebagai elips pipih.</p>
+<h2>Menggerakkan karakternya</h2>
+<ul>
+<li><strong>Jalan ke target</strong> dengan pegas teredam kritis: <code>v += ((target − x)·6 − v·3.2)·dt</code>. Berhenti halus, tanpa overshoot, kecepatan dibatasi.</li>
+<li><strong>Arah</strong> hanya berubah jika <code>|v| &gt; 4</code> agar tidak menggeletar saat diam. Semua fitur wajah memakai koordinat <code>fx = (x − x0)·arah</code>, jadi menghadap kiri = cukup balik tanda.</li>
+<li><strong>Condong ke arah gerak</strong>: <code>lean = clamp(v·0.045)</code>, bagian atas badan, jangkar jubah, dan jangkar topi bergeser; kaki tetap. Itulah yang memberi &quot;dorongan&quot; ke physics.</li>
+<li><strong>Bob + ayun</strong>: <code>phase += |v|·dt·π/8</code> (satu siklus per 16 px, kaki tidak meluncur). Sepatu terangkat <code>max(0, sin(phase))</code>, lengan mengayun, jenggot tertinggal sebanding <code>v</code>.</li>
+</ul>
+<h2>Aturan agar tidak meledak</h2>
+<ul>
+<li><strong>Langkah tetap 1/60 s</strong> dengan akumulator (<code>while (acc ≥ h) step()</code>). <code>dt</code> variabel membuat Verlet tidak stabil dan hasil GIF tidak sama antar komputer.</li>
+<li><strong>Jangkar selalu dikunci</strong> (<code>titik[0] = jangkar</code>) sebelum batasan jarak dihitung.</li>
+<li><strong>Jangan menaruh physics di dalam loop piksel.</strong> Simulasi satu kali per langkah; <code>draw()</code> hanya membaca array.</li>
+<li><strong>Clamp</strong> kecepatan karakter dan semua posisi (lantai); tanpa clamp, satu hembusan bisa membawa titik ke tak hingga.</li>
+<li><strong>Float32Array</strong> untuk titik; alokasi array baru per frame hanya untuk buffer indeks piksel.</li>
+<li>Tambah bagian lemas lain dengan resep yang sama: jenggot/rambut = rantai Verlet pendek, syal = Verlet, bulu/ekor = pegas-ke-pose.</li>
+</ul>
+<h2>Prompt untuk AI</h2>
+<blockquote>
+<p>Gambar penyihir pixel 112×72 per-piksel (query bentuk, bukan sprite manual). Jubah = rantai Verlet 9 titik (jangkar di leher, gravitasi, angin, pegas lembut ke belakang, batasan jarak 5 iterasi, lantai), dirender sebagai kapsul meruncing dengan shading dari <code>e</code>, posisi rantai, dan sisi. Pucuk topi = rantai 5 titik yang ditarik pegas ke pose melengkung, redaman 0.965 agar memantul. Physics berjalan di langkah tetap 1/60 s. Karakter berjalan ke arah mouse dengan pegas teredam kritis dan condong ke arah gerak.</p>
+</blockquote>
+<div class="demo" data-demo="wizard"><p class="nojs">Demo interaktif butuh JavaScript. Kode lengkap ada di bawah.</p></div>
+<p>Gerakkan mouse untuk menyuruh penyihir berjalan. Geser <strong>Angin</strong> dan <strong>Pucuk topi lemas</strong>, atau tekan <strong>Hembusan</strong>.</p>
+<h2>Kode</h2>
+<details class="code" open><summary>Kode: <code>src/code/54-demo-wizard.js</code></summary><pre><code class="language-js">// Penyihir prosedural dengan physics: JUBAH = rantai Verlet (9 titik, dirender sebagai kapsul meruncing), PUCUK TOPI = rantai pegas ke pose istirahat (memantul).
+// Semua digambar per-piksel (query bentuk), physics jalan di langkah tetap 1/60 s agar stabil. Gerakkan mouse: penyihir berjalan ke sana, jubah menjuntai, pucuk topi bergoyang.
+PX.demos.wizard = (host) =&gt; {
+  const W = 112, H = 72, GY = 63, cv = PX.canvas(host, W, H, 640, false, 'Penyihir — jubah dan pucuk topi ber-physics'), c = cv.getContext('2d'), img = c.createImageData(W, H), p = PX.pointer(cv), ui = PX.ui(host);
+  cv.style.background = '#14102a';
+  let wind = 0.35, floppy = 0.5, gust = 0;
+  ui.range('Angin', 0, 1, 0.01, wind, (v) =&gt; (wind = v));
+  ui.range('Pucuk topi lemas', 0, 1, 0.01, floppy, (v) =&gt; (floppy = v));
+  ui.button('Hembusan', () =&gt; (gust = 1));
+  const PAL = ['#00000000', '#120d24', '#6a3fb5', '#4a2a85', '#8f68e0', '#ffd166', '#3a56c8', '#26398f', '#6f8cf5', '#ffd0b8', '#e0a58a', '#eef1ff', '#aab4e0', '#2b3a8a', '#1c2566', '#4b5cc0', '#ffd166', '#1c1530', '#2a2050', '#0e0a20', '#cfd6ff', '#3a2d6b'].map((h) =&gt; (h.length &gt; 7 ? [0, 0, 0, 0] : [...PX.hex(h), 255]));
+  const [E, OL, CAPE, CAPES, CAPEL, TRIM, ROBE, ROBES, ROBEL, SKIN, SKINS, BEARD, BEARDS, HAT, HATS, HATL, BAND, EYE, GROUND, SHAD, STAR, GRL] = PAL.map((_, i) =&gt; i);
+  const NC = 9, SL = 3.7, NH = 5, HL = 4.4, h = 1 / 60;                                            // NC titik jubah (jarak SL), NH titik topi (jarak HL)
+  const CR = Array.from({ length: NC }, (_, i) =&gt; 2 + 5.5 * Math.pow(i / (NC - 1), 1.15));          // radius jubah: sempit di leher, melebar di ujung
+  const HR = Array.from({ length: NH }, (_, i) =&gt; 0.6 + 6.4 * (1 - i / (NH - 1)));                  // radius topi: lebar di dasar, runcing di pucuk
+  const cx = new Float32Array(NC), cy = new Float32Array(NC), cpx = new Float32Array(NC), cpy = new Float32Array(NC);   // jubah: posisi &amp; posisi sebelumnya (Verlet)
+  const hx = new Float32Array(NH), hy = new Float32Array(NH), hpx = new Float32Array(NH), hpy = new Float32Array(NH), tx_ = new Float32Array(NH), ty_ = new Float32Array(NH);
+  let ox = W / 2, vx = 0, dir = 1, phase = 0, bob = 0, lean = 0, acc = 0, ts = 0, inited = false, mv = 0;
+  let CA, HA;                                                                                      // jangkar: belakang leher (jubah) &amp; atas kepala (topi)
+  const hdY = () =&gt; GY - 35 - bob;                                                                  // pusat kepala
+
+  const pose = () =&gt; {                                                                              // pose istirahat pucuk topi: melengkung ke belakang makin ke ujung
+    let x = HA[0], y = HA[1], a = 0.12; tx_[0] = x; ty_[0] = y;
+    for (let i = 1; i &lt; NH; i++) { a += 0.22; x += -dir * Math.sin(a) * HL; y -= Math.cos(a) * HL; tx_[i] = x; ty_[i] = y; }
+  };
+  const solve = (X, Y, n, len, iters) =&gt; {                                                          // batasan jarak: titik 0 terkunci pada jangkar
+    for (let k = 0; k &lt; iters; k++) for (let i = 1; i &lt; n; i++) {
+      const dx = X[i] - X[i - 1], dy = Y[i] - Y[i - 1], d = Math.hypot(dx, dy) || 1e-6, f = (d - len) / d, w0 = i === 1 ? 0 : 0.5, w1 = i === 1 ? 1 : 0.5;
+      X[i - 1] += dx * f * w0; Y[i - 1] += dy * f * w0; X[i] -= dx * f * w1; Y[i] -= dy * f * w1;
+    }
+  };
+  const step = () =&gt; {
+    ts += h; const t = ts;
+    const tgt = p.in ? PX.clamp(p.x, 14, W - 14) : W / 2 + Math.sin(t * 0.55) * 34;                // target jalan: mouse, atau patroli otomatis
+    vx = PX.clamp(vx + ((tgt - ox) * 6 - vx * 3.2) * h, -46, 46); ox += vx * h;                      // pegas teredam kritis -&gt; berhenti halus
+    if (Math.abs(vx) &gt; 4) dir = vx &gt; 0 ? 1 : -1;
+    mv = Math.min(1, Math.abs(vx) / 20); phase += Math.abs(vx) * h * Math.PI / 8;
+    bob = Math.abs(Math.sin(phase)) * 1.3 * mv + 0.5 * Math.sin(t * 2.2) * (1 - mv); lean = PX.clamp(vx * 0.045, -2.2, 2.2);
+    CA = [ox - dir * 3.2 + lean * 0.9, GY - 28 - bob]; HA = [ox + dir * 0.8 + lean, hdY() - 3.2];
+    pose(); gust *= Math.exp(-h * 1.2);
+    const windF = wind * (0.55 + 0.45 * Math.sin(t * 1.7) * Math.sin(t * 0.43 + 1)) + gust * 1.2;     // hembusan: 2 sinus berbeda frekuensi
+    if (!inited) { inited = true; for (let i = 0; i &lt; NC; i++) { cx[i] = cpx[i] = CA[0]; cy[i] = cpy[i] = CA[1] + i * SL; } for (let i = 0; i &lt; NH; i++) { hx[i] = hpx[i] = tx_[i]; hy[i] = hpy[i] = ty_[i]; } }
+    cx[0] = CA[0]; cy[0] = CA[1];
+    for (let i = 1; i &lt; NC; i++) {                                                                  // Verlet jubah: inersia + gravitasi + angin + pegas lembut ke &quot;menjuntai di belakang&quot;
+      const k = i / (NC - 1), vxx = (cx[i] - cpx[i]) * 0.985, vyy = (cy[i] - cpy[i]) * 0.985; cpx[i] = cx[i]; cpy[i] = cy[i];
+      const rx = CA[0] - dir * SL * i * 0.85, ry = CA[1] + SL * i * 0.5;
+      cx[i] += vxx + (windF * 260 * (0.3 + 0.7 * k) + (rx - cx[i]) * 10) * h * h;
+      cy[i] += vyy + (260 + (ry - cy[i]) * 10) * h * h;
+    }
+    solve(cx, cy, NC, SL, 5);
+    for (let i = 1; i &lt; NC; i++) if (cy[i] &gt; GY - 1) { cy[i] = GY - 1; cpy[i] = cy[i]; }            // lantai
+    hx[0] = HA[0]; hy[0] = HA[1];
+    const ks = 55 + 240 * (1 - floppy), gr = 60 + 360 * floppy;                                       // kaku pegas &amp; gravitasi pucuk
+    for (let i = 1; i &lt; NH; i++) {                                                                  // pucuk topi: pegas ke pose istirahat, redaman kecil -&gt; memantul
+      const vxx = (hx[i] - hpx[i]) * 0.965, vyy = (hy[i] - hpy[i]) * 0.965; hpx[i] = hx[i]; hpy[i] = hy[i];
+      hx[i] += vxx + ((tx_[i] - hx[i]) * ks + windF * 40) * h * h;
+      hy[i] += vyy + ((ty_[i] - hy[i]) * ks + gr) * h * h;
+    }
+    solve(hx, hy, NH, HL, 3);
+  };
+
+  let cs = 0, cl = 0;                                                                               // hasil kueri rantai: indeks+t sepanjang rantai, posisi lateral bertanda (-1..1)
+  const chain = (x, y, X, Y, R, n) =&gt; {                                                             // kapsul meruncing berantai: jarak ke tulang punggung / radius lokal
+    let best = 9;
+    for (let i = 0; i &lt; n - 1; i++) {
+      const dx = X[i + 1] - X[i], dy = Y[i + 1] - Y[i], tt = PX.clamp(((x - X[i]) * dx + (y - Y[i]) * dy) / (dx * dx + dy * dy), 0, 1);
+      const qx = x - X[i] - dx * tt, qy = y - Y[i] - dy * tt, e = Math.hypot(qx, qy) / (R[i] + (R[i + 1] - R[i]) * tt);
+      if (e &lt; best) { best = e; cs = i + tt; cl = (qx * dy - qy * dx &gt; 0 ? 1 : -1) * e; }
+    }
+    return best;
+  };
+  const seg = (x, y, ax, ay, bx, by) =&gt; { const dx = bx - ax, dy = by - ay, t = PX.clamp(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy), 0, 1); return Math.hypot(x - ax - dx * t, y - ay - dy * t); };
+
+  const draw = (t) =&gt; {
+    const idx = new Uint8Array(W * H), hcY = hdY(), hcX = ox + lean + dir * 0.6, nkY = GY - 29 - bob, blink = (t % 3.2) &lt; 0.12;
+    const sh = [ox + lean * 0.9 + dir * 0.5, GY - 26 - bob], sw = Math.sin(phase) * mv * 3.5 + 0.4 * Math.sin(t * 2), hand = [sh[0] + dir * (1.2 + sw), sh[1] + 10.5];
+    for (let y = 0; y &lt; H; y++) for (let x = 0; x &lt; W; x++) {
+      const px = x + 0.5, py = y + 0.5; let v = E;
+      if (py &gt; GY) v = ((px - ox) / 13) ** 2 + ((py - GY - 2) / 2.2) ** 2 &lt;= 1 ? SHAD : py &lt; GY + 1.5 ? GRL : GROUND;     // tanah + bayangan
+      else if (PX.hash(x, y, 91) &gt; 0.992) v = STAR;                                                  // bintang latar (statis)
+      if (py &lt;= GY + 0.5 &amp;&amp; chain(px, py, cx, cy, CR, NC) &lt;= 1) {                                    // jubah (paling belakang)
+        const e = chain(px, py, cx, cy, CR, NC);
+        v = e &gt; 0.8 || Math.abs(Math.sin(cl * 3.2 + cs * 0.35)) &gt; 0.86 ? CAPES : e &lt; 0.4 &amp;&amp; cs &lt; 3.5 ? CAPEL : CAPE;
+        if (cs &gt; NC - 2.35 &amp;&amp; cs &lt; NC - 1.9) v = TRIM;                                               // list emas dekat ujung
+      }
+      const dxr = px - ox - lean * (1 - (GY - py) / 30), rw = 5 + (py - nkY) * 0.26;                // jubah baju (robe): condong ke arah gerak di atas, kaki tetap
+      if (py &gt;= nkY &amp;&amp; py &lt;= GY - 2 &amp;&amp; Math.abs(dxr) &lt;= rw) {
+        v = Math.abs(dxr) / rw &gt; 0.82 || py &gt; GY - 4 ? ROBES : dxr &lt; -rw * 0.4 ? ROBEL : ROBE;
+        if (py &gt; GY - 17 &amp;&amp; py &lt; GY - 15.5) v = BAND;                                               // sabuk
+      }
+      for (const s of [-1, 1]) {                                                                    // sepatu: kaki yang &quot;melangkah&quot; terangkat
+        const lift = Math.max(0, Math.sin(phase + (s &gt; 0 ? 0 : Math.PI))) * 2.2 * mv;
+        if (((px - ox - s * 3.6 - dir * 0.8) / 2.8) ** 2 + ((py - (GY - 1 - lift)) / 1.5) ** 2 &lt;= 1) v = HATS;
+      }
+      const ae = seg(px, py, sh[0], sh[1], hand[0], hand[1]) / 1.9;                                  // lengan dekat (ayun saat jalan)
+      if (ae &lt;= 1) v = ae &gt; 0.62 ? ROBES : ROBEL;
+      if (Math.hypot(px - hand[0], py - hand[1]) &lt;= 1.6) v = SKIN;
+      const hd = Math.hypot(px - hcX, py - hcY), fx = (px - hcX) * dir;                              // kepala
+      if (hd &lt;= 6 || (fx &gt;= 5.4 &amp;&amp; fx &lt; 7 &amp;&amp; py &gt;= hcY + 1.5 &amp;&amp; py &lt; hcY + 3.5)) v = hd &gt; 4.8 ? SKINS : SKIN;
+      if (!blink &amp;&amp; py &gt;= hcY + 0.5 &amp;&amp; py &lt; hcY + 2.5 &amp;&amp; ((fx &gt;= 1 &amp;&amp; fx &lt; 2) || (fx &gt;= 3.6 &amp;&amp; fx &lt; 4.6))) v = EYE;
+      const db = py - (hcY + 2.5);                                                                  // jenggot: bergoyang tertinggal oleh kecepatan
+      if (db &gt;= 0 &amp;&amp; db &lt;= 11) {
+        const half = 5.2 * Math.pow(1 - db / 12, 0.7), ex = px - (hcX + dir * 0.5 - PX.clamp(vx * 0.03, -1.5, 1.5) * (db / 11));
+        if (Math.abs(ex) &lt;= half) v = Math.abs(ex) &gt; half - 1.2 || db &gt; 9 ? BEARDS : BEARD;
+      }
+      if (py &lt;= HA[1] + 1 &amp;&amp; chain(px, py, hx, hy, HR, NH) &lt;= 1) {                                   // kerucut topi (di atas brim saja)
+        const e = chain(px, py, hx, hy, HR, NH);
+        v = e &gt; 0.75 ? HATS : cl &lt; -0.35 ? HATL : HAT;
+        if (cs &gt; 0.25 &amp;&amp; cs &lt; 0.85) v = BAND;
+      }
+      if (((px - HA[0]) / 10) ** 2 + ((py - HA[1] - 1.2) / 2.3) ** 2 &lt;= 1) v = py &lt; HA[1] + 1.2 ? HAT : HATS;   // brim
+      idx[y * W + x] = v;
+    }
+    for (let y = 0; y &lt; H; y++) for (let x = 0; x &lt; W; x++) {                                       // outline 1 piksel dari siluet sprite (indeks 1..17)
+      const i = y * W + x, sp = (j) =&gt; idx[j] &gt; 0 &amp;&amp; idx[j] &lt; GROUND; let v = idx[i];
+      if (!sp(i) &amp;&amp; ((x &gt; 0 &amp;&amp; sp(i - 1)) || (x &lt; W - 1 &amp;&amp; sp(i + 1)) || (y &gt; 0 &amp;&amp; sp(i - W)) || (y &lt; H - 1 &amp;&amp; sp(i + W)))) v = OL;
+      img.data.set(v === STAR ? (PX.hash(x, y, 92 + (Math.floor(t * 2) % 3)) &gt; 0.4 ? PAL[STAR] : PAL[E]) : PAL[v], i * 4);
+    }
+    c.putImageData(img, 0, 0);
+  };
+
+  PX.loop(host, (dt, t) =&gt; { acc += dt; while (acc &gt;= h) { step(); acc -= h; } draw(t); });
+};</code></pre></details>
+
+<nav class="pn"><a href="procedural-character.html">← Karakter prosedural dari persamaan</a></nav>
+</article></main></div>
+<footer><p>Akses mesin: <a href="../llms.txt">llms.txt</a> · <a href="../llms-full.txt">llms-full.txt</a> · <a href="../index.json">index.json</a> · <a href="../sitemap.xml">sitemap.xml</a> · <a href="https://github.com/kintil555/makespritewithclaude">GitHub</a></p>
+<p class="credit">© 2026 voxel. Seluruh hak cipta dilindungi.</p>
+<p class="credit">Terima kasih kepada semua kreator, penulis tutorial, dan komunitas pixel art, VFX, serta game dev di internet yang berbagi ilmu dan referensinya secara terbuka — khususnya <a href="https://blockbench.net/wiki/guides/minecraft-style-guide">Blockbench</a>, <a href="https://phaser.io/packs/retro-textures/api">Phaser</a>, dan <a href="https://www.spritefusion.com/">Sprite Fusion</a>. Kode di situs ini ditulis ulang orisinal; teknik dipelajari dari referensi tersebut.</p>
+<p class="credit">Font: “Pixel Font - Groundhog” © 2022 Chevy Ray Johnston.</p></footer>
+</div>
+<script src="../assets/px.js"></script><script src="../assets/site.js"></script>
+</body></html>
